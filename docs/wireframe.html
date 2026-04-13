@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Catechism Voice — Wireframe</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif; background: #f8f7f4; color: #2a2a2a; }
+  .phone { width: 375px; margin: 24px auto; border: 2px solid #d0cec8; border-radius: 32px; overflow: hidden; background: #fff; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
+  .screen { padding: 20px 24px 32px; min-height: 700px; display: flex; flex-direction: column; }
+  .status-bar { display: flex; justify-content: space-between; font-size: 12px; color: #888; padding: 12px 0 16px; }
+  
+  /* Screen 1: Home / Session Start */
+  .mode-selector { display: flex; gap: 8px; margin: 16px 0; }
+  .mode-btn { flex: 1; padding: 12px; border: 2px solid #d0cec8; border-radius: 12px; text-align: center; font-size: 14px; background: #fff; cursor: pointer; }
+  .mode-btn.active { border-color: #3d5a80; background: #f0f4f8; font-weight: 600; }
+  .mode-label { font-size: 11px; color: #888; margin-top: 4px; }
+  .streak-bar { display: flex; align-items: center; gap: 12px; padding: 16px; background: #faf9f6; border-radius: 12px; margin: 16px 0; }
+  .streak-num { font-size: 28px; font-weight: 700; color: #3d5a80; }
+  .streak-text { font-size: 13px; color: #666; }
+  .badge-row { display: flex; gap: 8px; margin-top: 8px; }
+  .badge { width: 32px; height: 32px; border-radius: 50%; background: #e8dfd0; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+  .badge.earned { background: #d4a853; }
+  .start-btn { width: 100%; padding: 18px; background: #3d5a80; color: #fff; border: none; border-radius: 16px; font-size: 17px; font-weight: 600; margin-top: auto; cursor: pointer; letter-spacing: 0.3px; }
+  .question-count { text-align: center; color: #888; font-size: 13px; margin-top: 12px; }
+  
+  /* Screen 2: Voice Recording */
+  .question-num { font-size: 13px; color: #888; margin-bottom: 8px; letter-spacing: 1px; }
+  .question-text { font-size: 20px; font-weight: 600; line-height: 1.5; margin-bottom: 24px; }
+  .listening-indicator { text-align: center; margin: 40px 0; }
+  .pulse-ring { width: 120px; height: 120px; border-radius: 50%; border: 3px solid #3d5a80; margin: 0 auto; display: flex; align-items: center; justify-content: center; animation: pulse 2s infinite; }
+  @keyframes pulse { 0% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.08); opacity: 0.7; } 100% { transform: scale(1); opacity: 1; } }
+  .mic-icon { font-size: 40px; }
+  .listening-text { margin-top: 16px; font-size: 14px; color: #3d5a80; font-weight: 500; }
+  .live-transcript { margin-top: 24px; padding: 16px; background: #faf9f6; border-radius: 12px; font-size: 15px; line-height: 1.6; color: #555; min-height: 60px; font-style: italic; }
+  
+  /* Screen 3: Diff Result */
+  .score-circle { width: 100px; height: 100px; border-radius: 50%; border: 4px solid #4a9; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; }
+  .score-num { font-size: 32px; font-weight: 700; color: #4a9; }
+  .score-label { text-align: center; font-size: 14px; color: #888; margin-bottom: 24px; }
+  .diff-container { padding: 20px; background: #faf9f6; border-radius: 12px; line-height: 1.8; font-size: 16px; margin-bottom: 20px; }
+  .diff-correct { color: #2d8a5e; background: #e6f5ed; padding: 2px 4px; border-radius: 4px; }
+  .diff-wrong { color: #c0392b; background: #fde8e6; padding: 2px 4px; border-radius: 4px; text-decoration: line-through; }
+  .diff-missing { color: #c0392b; background: #fde8e6; padding: 2px 4px; border-radius: 4px; opacity: 0.6; font-style: italic; }
+  .reflection { padding: 16px; background: #f0f4f8; border-left: 3px solid #3d5a80; border-radius: 0 12px 12px 0; margin: 16px 0; font-size: 14px; line-height: 1.6; color: #444; }
+  .reflection-label { font-size: 11px; color: #3d5a80; font-weight: 600; margin-bottom: 6px; letter-spacing: 1px; }
+  .streak-update { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; background: #faf9f6; border-radius: 12px; margin: 12px 0; }
+  .next-btn { width: 100%; padding: 16px; background: #3d5a80; color: #fff; border: none; border-radius: 16px; font-size: 16px; font-weight: 600; margin-top: auto; cursor: pointer; }
+  
+  .screens { display: flex; gap: 40px; flex-wrap: wrap; justify-content: center; padding: 20px; }
+  .screen-label { text-align: center; font-size: 12px; color: #888; margin-top: -16px; margin-bottom: 8px; letter-spacing: 1px; font-weight: 600; }
+  h1 { text-align: center; padding: 32px 0 0; font-size: 20px; color: #2a2a2a; font-weight: 600; }
+  .subtitle { text-align: center; font-size: 13px; color: #888; margin-bottom: 24px; }
+</style>
+</head>
+<body>
+
+<h1>Catechism Voice — Core Experience Flow</h1>
+<p class="subtitle">Three screens: Start → Listen → Diff Result</p>
+
+<div class="screens">
+
+<!-- SCREEN 1: Home -->
+<div>
+<p class="screen-label">HOME / SESSION START</p>
+<div class="phone">
+<div class="screen">
+  <div class="status-bar"><span>9:41 AM</span><span>☰</span></div>
+  
+  <div style="text-align:center; margin-bottom: 8px;">
+    <div style="font-size: 24px; font-weight: 700; color: #3d5a80;">Catechism Voice</div>
+    <div style="font-size: 12px; color: #888; margin-top: 4px;">Westminster Shorter Catechism</div>
+  </div>
+  
+  <!-- Mode selector -->
+  <div style="font-size: 12px; color: #888; margin-bottom: 6px; letter-spacing: 1px; font-weight: 600;">MODE</div>
+  <div class="mode-selector">
+    <div class="mode-btn" style="border-color: #d4a853;">
+      <div>🌱</div>
+      <div style="font-weight:600; font-size:14px;">Learning</div>
+      <div class="mode-label">Prompts help you</div>
+    </div>
+    <div class="mode-btn active">
+      <div>📖</div>
+      <div style="font-weight:600; font-size:14px;">Easy</div>
+      <div class="mode-label">Get the gist</div>
+    </div>
+    <div class="mode-btn">
+      <div>⚔️</div>
+      <div style="font-weight:600; font-size:14px;">Hard</div>
+      <div class="mode-label">Every word</div>
+    </div>
+  </div>
+  
+  <!-- Streak -->
+  <div class="streak-bar">
+    <div class="streak-num">7</div>
+    <div>
+      <div class="streak-text" style="font-weight:600; color:#333;">Day streak</div>
+      <div class="streak-text">3 more for 🔥 badge</div>
+    </div>
+  </div>
+  
+  <!-- Badges -->
+  <div style="font-size: 12px; color: #888; margin-bottom: 6px; letter-spacing: 1px; font-weight: 600;">BADGES</div>
+  <div class="badge-row">
+    <div class="badge earned">🔥</div>
+    <div class="badge earned">📖</div>
+    <div class="badge earned">⭐</div>
+    <div class="badge">🏆</div>
+    <div class="badge">👑</div>
+    <div class="badge">💎</div>
+  </div>
+  
+  <!-- Progress -->
+  <div style="margin-top: 20px;">
+    <div style="font-size: 12px; color: #888; margin-bottom: 6px; letter-spacing: 1px; font-weight: 600;">PROGRESS</div>
+    <div style="background: #eee; height: 8px; border-radius: 4px; overflow: hidden;">
+      <div style="background: #3d5a80; height: 100%; width: 35%; border-radius: 4px;"></div>
+    </div>
+    <div style="font-size: 12px; color: #888; margin-top: 4px;">37 of 107 mastered</div>
+  </div>
+  
+  <button class="start-btn" style="margin-top: 32px;">Begin Session</button>
+  <div class="question-count">5 questions · ~3 minutes</div>
+</div>
+</div>
+</div>
+
+<!-- SCREEN 2: Voice Recording -->
+<div>
+<p class="screen-label">LISTENING</p>
+<div class="phone">
+<div class="screen">
+  <div class="status-bar"><span>9:42 AM</span><span>Q 1 of 5</span></div>
+  
+  <div class="question-num">QUESTION 1</div>
+  <div class="question-text">What is the chief end of man?</div>
+  
+  <!-- Listening state -->
+  <div class="listening-indicator">
+    <div class="pulse-ring">
+      <div class="mic-icon">🎙️</div>
+    </div>
+    <div class="listening-text">Listening...</div>
+  </div>
+  
+  <!-- Live transcript appearing -->
+  <div class="live-transcript">
+    "Man's chief end is to glorify God and to enjoy him..."
+  </div>
+  
+  <div style="margin-top: auto; text-align: center;">
+    <div style="font-size: 12px; color: #888;">Tap mic to stop · or pause for 3s</div>
+  </div>
+</div>
+</div>
+</div>
+
+<!-- SCREEN 3: Diff Result -->
+<div>
+<p class="screen-label">DIFF RESULT</p>
+<div class="phone">
+<div class="screen">
+  <div class="status-bar"><span>9:42 AM</span><span>Easy Mode</span></div>
+  
+  <div class="score-circle">
+    <div class="score-num">85%</div>
+  </div>
+  <div class="score-label">Great — you captured the meaning!</div>
+  
+  <!-- Visual diff -->
+  <div style="font-size: 12px; color: #888; margin-bottom: 6px; letter-spacing: 1px; font-weight: 600;">YOUR ANSWER</div>
+  <div class="diff-container">
+    <span class="diff-correct">Man's</span>
+    <span class="diff-correct">chief</span>
+    <span class="diff-correct">end</span>
+    <span class="diff-correct">is</span>
+    <span class="diff-correct">to</span>
+    <span class="diff-correct">glorify</span>
+    <span class="diff-correct">God</span>
+    <span class="diff-wrong">and</span>
+    <span class="diff-correct">to</span>
+    <span class="diff-correct">enjoy</span>
+    <span class="diff-correct">him</span>
+    <span class="diff-missing">[forever]</span>
+  </div>
+  
+  <!-- Reflection -->
+  <div class="reflection">
+    <div class="reflection-label">WHY THIS MATTERS</div>
+    This answer frames all of life. Every decision, every joy, every suffering gains meaning when directed toward glorifying and enjoying God. It's not two separate things — glorifying God IS how we enjoy him.
+  </div>
+  
+  <!-- Streak -->
+  <div class="streak-update">
+    <span style="font-size: 18px;">🔥</span>
+    <span style="font-weight: 600; color: #333;">Streak: 8</span>
+    <span style="color: #888; font-size: 13px;">· 2 more for badge</span>
+  </div>
+  
+  <button class="next-btn">Next Question →</button>
+</div>
+</div>
+</div>
+
+</div>
+
+<!-- Design notes -->
+<div style="max-width: 800px; margin: 32px auto; padding: 0 24px 40px;">
+  <p style="font-size: 12px; color: #888; line-height: 1.8;">
+    <!-- Design decisions -->
+    <strong>Design notes:</strong> Warm neutrals (#faf9f6 background) feel contemplative, not clinical.
+    Muted blue (#3d5a80) for primary actions grounds the interface without competing with the content.
+    The diff uses green for correct and red for wrong/missing — immediate, no legend needed.
+    The "Why This Matters" reflection sits below the diff, visible without scrolling, placed at the exact moment
+    the user just finished wrestling with the content. Badge progression (earned = gold, unearned = gray)
+    gives a sense of journey without pressure. Mode selector uses icons + one-line descriptions so the
+    difference between Learning/Easy/Hard is obvious at a glance.
+  </p>
+</div>
+
+</body>
+</html>
