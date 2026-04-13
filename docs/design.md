@@ -26,14 +26,14 @@ Three things no existing app combines:
 ## Constraints
 
 - **Phone-first PWA.** Must work great on mobile browsers, installable to home screen. No app store gatekeeping.
-- **Free/cheap infrastructure.** Supabase free tier for backend. Web Speech API (free, built-in) for STT and TTS.
+- **Free/cheap infrastructure.** Supabase free tier for backend. Groq Whisper API (free tier: 2,000 req/day) for STT. Browser SpeechSynthesis API (free, built-in) for TTS.
 - **Single catechism first.** Westminster Shorter Catechism (107 Q&As, public domain). No multi-catechism support in v1.
-- **Voice accuracy.** Speech-to-text must be accurate enough for catechism vocabulary (theological terms, archaic phrasing).
+- **Voice accuracy.** Speech-to-text must handle archaic/theological vocabulary (tested and validated with Groq Whisper Large v3).
 
 ## Premises
 
 1. **Voice-first is the primary mode.** The app is built around speaking answers out loud, not typing. The AI reads the question aloud via TTS for true hands-free use.
-2. **Phone speech-to-text is good enough.** Modern mobile speech recognition can transcribe catechism answers accurately enough to diff against the source text. Validation step: test Web Speech API accuracy against 20 representative catechism answers on iOS Safari and Android Chrome. If word error rate > 15%, evaluate paid alternatives (Deepgram, AssemblyAI).
+2. **Groq Whisper Large v3 handles archaic vocabulary.** Tested against 20 representative WSC answers. Web Speech API failed on archaic terms ("doth", "maketh", "continueth"). Groq Whisper Large v3 passes, especially with a prompt hint containing archaic vocabulary. Free tier (2,000 req/day) covers expected usage (500 req/day for 100 users). Cost at scale: ~$5-14/month.
 3. **The diff is the core feedback loop.** Seeing exactly which words you got right vs. wrong (not just pass/fail) is what makes this better than flashcards.
 4. **Personal spiritual growth drives retention, not social competition.** The app reminds users WHY each catechism answer matters. Leaderboards and badges are present but secondary. The core emotional loop is: "I'm getting deeper into my faith."
 5. **A web app (PWA) is the right form factor.** Shareable via URL, installable to home screen, no app store approval needed.
@@ -67,10 +67,35 @@ Everything in B plus LLM (Claude API) for semantic grading in Easy mode and pers
 **Tech Stack:**
 - Next.js 14 (App Router) on Vercel (free tier)
 - Supabase (auth, Postgres, real-time) on free tier
-- Web Speech API for STT (SpeechRecognition) and TTS (SpeechSynthesis)
+- Groq Whisper Large v3 for STT (via API, free tier: 2,000 req/day)
+- Browser SpeechSynthesis API for TTS (free, built-in)
 - diff-match-patch for word-level diff visualization (requires a word-level wrapper — the library operates on characters by default; its wiki documents the word-tokenization technique)
 - Tailwind CSS for styling
 - next-pwa for PWA manifest + service worker
+
+**STT Architecture (Groq Whisper):**
+
+Groq's Whisper API is batch-only (no real-time streaming), but transcribes a 30-second clip in ~200ms. This is fast enough for all three modes.
+
+Every request includes a `prompt` parameter with archaic vocabulary hints:
+```
+"Westminster Shorter Catechism. Archaic English: thou shalt, doth, maketh,
+continueth, applieth, effectual calling, sanctification, justification,
+imputed, pardoneth, accepteth, requireth, communicateth, teacheth, thine,
+therein, thereof, whereby, wherein, unto."
+```
+
+The prompt is sent per-request (no session persistence). This is fine — it's a short string and requests are free.
+
+Audio is captured client-side via MediaRecorder API (WebM/Opus format), sent to a Vercel Edge Function that proxies to Groq's API (to protect the API key). The Edge Function adds the prompt hint and returns the transcript.
+
+```
+Phone (MediaRecorder) -> Vercel Edge Function -> Groq API -> transcript
+         ~0ms                  ~50ms               ~200ms
+                                              Total: ~250ms
+```
+
+**Fallback chain:** If Groq is unavailable (rate limit, outage), fall back to Web Speech API with a warning that archaic terms may be less accurate. If Web Speech API is also unavailable, show text input.
 
 **Data Model:**
 - `catechisms` — id, name, description (e.g., "Westminster Shorter Catechism")
@@ -87,6 +112,33 @@ Everything in B plus LLM (Claude API) for semantic grading in Easy mode and pers
 1. **Learning Mode** — TTS reads the question. User starts answering. If they pause for 5 seconds, recording pauses, TTS whispers the next few words at reduced volume and faster rate, then recording resumes. The whispered words are excluded from the user's transcript. Score reflects how many prompts were needed. Goal: zero prompts.
 2. **Easy Mode** — TTS reads the question. User answers. Scoring uses fuzzy matching: lowercase both strings, strip punctuation, apply word stemming (e.g., "glorifying" matches "glorify"), tolerate stopword omissions ("a", "the"). Score = percentage of canonical answer words matched. General gist earns points.
 3. **Hard Mode** — TTS reads the question. User answers. Exact word-for-word match via diff-match-patch. Score = (correct_words / total_canonical_words) * 100. Insertions are highlighted but don't reduce score. Deletions and substitutions reduce score. A question is only "passed" at 100%.
+
+**Learning Mode — Whispered Prompt Architecture:**
+
+Pause detection and whisper-back works without streaming STT. The flow:
+
+```
+1. User speaks         -> MediaRecorder captures audio
+2. Client detects      -> Web Audio API AnalyserNode monitors volume
+   5s silence             (volume < threshold for 5 seconds = "stall")
+3. On stall:
+   a. Stop MediaRecorder
+   b. Send audio chunk to Groq via Edge Function (~250ms roundtrip)
+   c. Diff partial transcript against canonical answer
+   d. Identify where user stopped (last matched word position)
+   e. TTS whispers next 3-5 words at reduced volume + faster rate
+   f. Increment prompt_count
+   g. Resume MediaRecorder after TTS finishes
+4. On completion       -> Send final audio chunk to Groq
+   (tap stop or 10s       Combine all partial transcripts
+   silence)               Compute final diff and score
+```
+
+Key implementation details:
+- **Silence detection:** Web Audio API `AnalyserNode.getByteFrequencyData()` polled every 200ms. Silence = average frequency below threshold for 5 consecutive seconds.
+- **No echo problem:** Recording pauses before TTS plays the whisper. TTS output is never captured by the mic.
+- **Partial transcript assembly:** Each audio chunk is transcribed independently. Chunks are concatenated for the final diff. The prompt hint is sent with every chunk.
+- **Groq handles this well:** Each chunk is a separate API call. At 2,000 req/day free tier, even if a user needs 5 prompts per question x 5 questions x 5 sessions = 125 extra requests/day, well within limits.
 
 **Scoring:**
 - Score = (matched_words / total_canonical_words) * 100
@@ -141,15 +193,16 @@ Everything in B plus LLM (Claude API) for semantic grading in Easy mode and pers
 - Note: hands-free mode is an audio experience. The visual diff is available in the session summary for review afterward. Best suited for walking, dishes, commuting (not driving — don't look at your phone while driving).
 
 **Fallback & Error Handling:**
-- If Web Speech API is unavailable (e.g., Firefox, older browsers): show a text input fallback. The diff still works, you just type instead of speak.
-- If speech recognition returns empty or garbage (noisy environment): show a "Didn't catch that — try again?" prompt with a retry button and a "Type instead" link.
-- If speech recognition fails mid-sentence: preserve what was captured so far, let the user retry or complete via text.
+- If Groq API is unavailable (rate limit, outage): fall back to Web Speech API with a banner warning "Voice accuracy may be reduced for archaic terms."
+- If both Groq and Web Speech API are unavailable: show a text input fallback. The diff still works, you just type instead of speak.
+- If transcription returns empty or garbage (noisy environment): show a "Didn't catch that — try again?" prompt with a retry button and a "Type instead" link.
+- If transcription fails mid-sentence: preserve what was captured so far, let the user retry or complete via text.
 - If TTS is unavailable: display question text only, skip audio playback, proceed with recording.
 
 ## Open Questions
 
 1. **"Why This Matters" content source.** Hand-curate all 107 reflections? Use existing commentary? A mix? (Reflections should be 2-3 sentences max, theologically sound, personally resonant.)
-2. **Offline support.** How important is offline mode? PWA service workers can cache the app shell and catechism content, but speech recognition typically needs connectivity (Chrome streams audio to Google's servers).
+2. **Offline support.** PWA service workers can cache the app shell and catechism content, but Groq STT requires internet connectivity. Offline mode would need Web Speech API fallback (less accurate on archaic terms) or no voice mode (text input only).
 3. **Group management UX.** How do church groups form? Invite codes? Pastor creates group? Link sharing?
 
 ## Success Criteria
@@ -159,7 +212,7 @@ Everything in B plus LLM (Claude API) for semantic grading in Easy mode and pers
 - **At least one church group uses it weekly.** Real people, real usage, not just the builder.
 - **Streak retention.** Users who start a streak maintain it for 7+ days at least 30% of the time.
 - **The "whoa" test.** Someone pulls it up on their phone for the first time and their reaction is surprise, not "oh, another flashcard app."
-- **Web Speech API validation.** Word error rate < 15% on 20 representative catechism answers tested on iOS Safari and Android Chrome.
+- **Groq STT latency.** Under 500ms roundtrip (Edge Function + Groq API) for 30-second audio clips.
 
 ## Distribution Plan
 
@@ -172,11 +225,11 @@ Everything in B plus LLM (Claude API) for semantic grading in Easy mode and pers
 ## Next Steps
 
 1. **Scaffold the project.** Next.js 14 + Tailwind + next-pwa. Get a blank PWA installable on phone.
-2. **Seed the content.** Westminster Shorter Catechism Q&As 1-30 into Supabase. Include question text, answer text, and hand-written "Why This Matters" reflections for at least the first 10.
-3. **Validate Web Speech API.** Test STT accuracy against 20 representative catechism answers on iOS Safari and Android Chrome. Measure word error rate. If WER > 15%, evaluate Deepgram/AssemblyAI.
-4. **Build the core loop.** Single screen: display question -> record voice -> diff against answer -> show results. This is the whole product in one screen.
-5. **Add TTS.** App speaks the question aloud before recording starts. This unlocks hands-free.
-6. **Add Learning mode.** The whispered-prompt feature when user stalls (pause recording during whisper, resume after).
+2. **Set up Groq STT proxy.** Vercel Edge Function at `/api/transcribe` that receives audio, forwards to Groq with the archaic vocabulary prompt hint, returns transcript. Store `GROQ_API_KEY` in Vercel environment variables.
+3. **Seed the content.** Westminster Shorter Catechism Q&As 1-30 into Supabase. Include question text, answer text, and hand-written "Why This Matters" reflections for at least the first 10.
+4. **Build the core loop.** Single screen: display question -> record voice (MediaRecorder) -> send to Groq via Edge Function -> diff against answer -> show results. This is the whole product in one screen.
+5. **Add TTS.** Browser SpeechSynthesis speaks the question aloud before recording starts. This unlocks hands-free.
+6. **Add Learning mode.** Silence detection via Web Audio API AnalyserNode. On 5s pause: stop recording, send chunk to Groq, diff partial transcript, TTS whisper next words, resume recording.
 7. **Add sessions, streaks, badges.** The progression layer.
 8. **Add groups and leaderboards.** The social layer (lightweight).
 9. **Ship to church group.** Get it in front of real people. Watch them use it.
@@ -199,5 +252,6 @@ A visual wireframe of the three-screen core flow (Home -> Listening -> Diff Resu
 
 Adversarial spec review (score: 6/10 initial, issues fixed below). Remaining items to address during implementation:
 
-1. **Archaic/theological vocabulary in STT.** Words like "effectual calling," "sanctification," "thee/thou/thy" may be misrecognized by Web Speech API. Mitigation: test early (Next Steps #3), consider a post-processing correction map for common theological terms.
+1. **Archaic/theological vocabulary in STT.** RESOLVED: Groq Whisper Large v3 with prompt hinting handles archaic terms accurately. Web Speech API (browser built-in) failed this test and is now only used as a fallback.
 2. **diff-match-patch word-level wrapper.** The library is character-level by default. A word-tokenization preprocessing step is required (documented in the library's wiki). Not complex, but not a drop-in.
+3. **Groq free tier limits.** 2,000 req/day covers 100 users at 5 questions/day (500 req). Learning Mode adds extra requests for whispered prompts. At worst case (every user needs prompts on every question), ~625 req/day. Still well within limits. Monitor usage and have Deepgram Nova-3 ($58/mo with keyterm prompting) as a backup if Groq changes their free tier.

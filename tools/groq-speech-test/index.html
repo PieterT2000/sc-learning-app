@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Groq Whisper — WSC Speech Test</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif; background: #f8f7f4; color: #2a2a2a; max-width: 700px; margin: 0 auto; padding: 20px; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .subtitle { color: #888; font-size: 14px; margin-bottom: 24px; }
+  .card { background: #fff; border: 1px solid #e0ddd8; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+  .q-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .q-num { font-size: 12px; font-weight: 600; color: #3d5a80; letter-spacing: 1px; }
+  .q-status { font-size: 12px; padding: 4px 10px; border-radius: 20px; font-weight: 600; }
+  .q-status.pending { background: #f0f0ee; color: #888; }
+  .q-status.recording { background: #fde8e6; color: #c0392b; }
+  .q-status.processing { background: #fef5e7; color: #e67e22; }
+  .q-status.done { background: #e6f5ed; color: #2d8a5e; }
+  .q-status.error { background: #fde8e6; color: #c0392b; }
+  .question { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+  .canonical { font-size: 14px; line-height: 1.6; color: #555; margin-bottom: 16px; padding: 12px; background: #faf9f6; border-radius: 8px; }
+  .canonical-label { font-size: 11px; color: #888; font-weight: 600; letter-spacing: 1px; margin-bottom: 4px; }
+  .btn { padding: 10px 20px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .btn-record { background: #3d5a80; color: #fff; }
+  .btn-record:hover { background: #2c4a6e; }
+  .btn-record:disabled { background: #ccc; cursor: not-allowed; }
+  .btn-record.recording { background: #c0392b; animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.7; } }
+  .btn-skip { background: #f0f0ee; color: #666; margin-left: 8px; }
+  .transcript { margin-top: 12px; padding: 12px; background: #f0f4f8; border-radius: 8px; font-size: 14px; line-height: 1.6; }
+  .transcript-label { font-size: 11px; color: #3d5a80; font-weight: 600; letter-spacing: 1px; margin-bottom: 4px; }
+  .diff { margin-top: 12px; padding: 12px; background: #faf9f6; border-radius: 8px; font-size: 14px; line-height: 1.8; }
+  .diff-label { font-size: 11px; color: #888; font-weight: 600; letter-spacing: 1px; margin-bottom: 4px; }
+  .word-correct { color: #2d8a5e; background: #e6f5ed; padding: 1px 3px; border-radius: 3px; }
+  .word-wrong { color: #c0392b; background: #fde8e6; padding: 1px 3px; border-radius: 3px; text-decoration: line-through; }
+  .word-missing { color: #c0392b; background: #fde8e6; padding: 1px 3px; border-radius: 3px; opacity: 0.6; font-style: italic; }
+  .word-extra { color: #e67e22; background: #fef5e7; padding: 1px 3px; border-radius: 3px; font-style: italic; }
+  .score { font-size: 18px; font-weight: 700; margin-top: 8px; }
+  .score.good { color: #2d8a5e; }
+  .score.ok { color: #e67e22; }
+  .score.bad { color: #c0392b; }
+  .wer-detail { font-size: 12px; color: #888; margin-top: 4px; }
+  .latency { font-size: 12px; color: #3d5a80; margin-top: 4px; }
+  .summary { background: #fff; border: 2px solid #3d5a80; border-radius: 12px; padding: 24px; margin-top: 24px; display: none; }
+  .summary h2 { font-size: 18px; margin-bottom: 16px; color: #3d5a80; }
+  .summary-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .summary-stat { text-align: center; }
+  .summary-stat .num { font-size: 32px; font-weight: 700; }
+  .summary-stat .label { font-size: 12px; color: #888; }
+  .summary-stat .num.good { color: #2d8a5e; }
+  .summary-stat .num.ok { color: #e67e22; }
+  .summary-stat .num.bad { color: #c0392b; }
+  .problem-words { margin-top: 16px; }
+  .problem-words h3 { font-size: 14px; margin-bottom: 8px; }
+  .problem-word { display: inline-block; padding: 4px 10px; margin: 2px; background: #fde8e6; color: #c0392b; border-radius: 6px; font-size: 13px; }
+  .progress-bar { background: #eee; height: 6px; border-radius: 3px; margin-bottom: 24px; }
+  .progress-fill { background: #3d5a80; height: 100%; border-radius: 3px; transition: width 0.3s; }
+  .instructions { background: #f0f4f8; border-radius: 12px; padding: 16px; margin-bottom: 20px; font-size: 14px; line-height: 1.6; color: #444; }
+  .hide-answer { cursor: pointer; color: #3d5a80; font-size: 13px; font-weight: 500; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 8px; text-align: left; border-bottom: 1px solid #eee; }
+  th { color: #888; font-weight: 600; font-size: 11px; letter-spacing: 1px; }
+  .verdict { font-size: 16px; font-weight: 700; margin-top: 16px; padding: 12px; border-radius: 8px; }
+  .verdict.pass { background: #e6f5ed; color: #2d8a5e; }
+  .verdict.fail { background: #fde8e6; color: #c0392b; }
+  .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .btn-copy { background: #f0f4f8; color: #3d5a80; font-size: 12px; padding: 6px 12px; margin-top: 16px; }
+  .mode-toggle { display: flex; gap: 8px; margin-bottom: 20px; }
+  .mode-btn { flex: 1; padding: 10px; border: 2px solid #e0ddd8; border-radius: 8px; text-align: center; font-size: 13px; cursor: pointer; background: #fff; }
+  .mode-btn.active { border-color: #3d5a80; background: #f0f4f8; font-weight: 600; }
+  .mode-label { font-size: 11px; color: #888; margin-top: 2px; }
+</style>
+</head>
+<body>
+
+<h1>Groq Whisper — WSC Speech Test</h1>
+<p class="subtitle">Testing Whisper Large v3 via Groq on 20 catechism answers</p>
+
+<div class="instructions">
+  <strong>How this works:</strong> Tap "Record", recite the answer (read it aloud or from memory), tap "Stop". Audio is sent to Groq's Whisper Large v3 for transcription. You'll see a word-by-word diff and WER per question. At the end, you get an overall score.
+</div>
+
+<div style="font-size:12px;color:#888;margin-bottom:8px;letter-spacing:1px;font-weight:600;">TEST MODE</div>
+<div class="mode-toggle">
+  <div class="mode-btn active" id="mode-noprompt" onclick="setMode('noprompt')">
+    <div>No Prompt</div>
+    <div class="mode-label">Raw Whisper accuracy</div>
+  </div>
+  <div class="mode-btn" id="mode-prompted" onclick="setMode('prompted')">
+    <div>With Prompt</div>
+    <div class="mode-label">Hint archaic terms</div>
+  </div>
+</div>
+
+<div class="progress-bar"><div class="progress-fill" id="progress" style="width:0%"></div></div>
+
+<div id="cards"></div>
+<div class="summary" id="summary"></div>
+
+<script>
+const QUESTIONS = [
+  { num: 1, q: "What is the chief end of man?", a: "Man's chief end is to glorify God, and to enjoy him forever." },
+  { num: 4, q: "What is God?", a: "God is a Spirit, infinite, eternal, and unchangeable, in his being, wisdom, power, holiness, justice, goodness, and truth." },
+  { num: 10, q: "How did God create man?", a: "God created man male and female, after his own image, in knowledge, righteousness, and holiness, with dominion over the creatures." },
+  { num: 14, q: "What is sin?", a: "Sin is any want of conformity unto, or transgression of, the law of God." },
+  { num: 21, q: "Who is the Redeemer of God's elect?", a: "The only Redeemer of God's elect is the Lord Jesus Christ, who, being the eternal Son of God, became man, and so was, and continueth to be, God and man in two distinct natures, and one person, forever." },
+  { num: 29, q: "How are we made partakers of the redemption purchased by Christ?", a: "We are made partakers of the redemption purchased by Christ, by the effectual application of it to us by his Holy Spirit." },
+  { num: 30, q: "How doth the Spirit apply to us the redemption purchased by Christ?", a: "The Spirit applieth to us the redemption purchased by Christ, by working faith in us, and thereby uniting us to Christ in our effectual calling." },
+  { num: 31, q: "What is effectual calling?", a: "Effectual calling is the work of God's Spirit, whereby, convincing us of our sin and misery, enlightening our minds in the knowledge of Christ, and renewing our wills, he doth persuade and enable us to embrace Jesus Christ, freely offered to us in the gospel." },
+  { num: 33, q: "What is justification?", a: "Justification is an act of God's free grace, wherein he pardoneth all our sins, and accepteth us as righteous in his sight, only for the righteousness of Christ imputed to us, and received by faith alone." },
+  { num: 34, q: "What is adoption?", a: "Adoption is an act of God's free grace, whereby we are received into the number, and have a right to all the privileges, of the sons of God." },
+  { num: 35, q: "What is sanctification?", a: "Sanctification is the work of God's free grace, whereby we are renewed in the whole man after the image of God, and are enabled more and more to die unto sin, and live unto righteousness." },
+  { num: 36, q: "What are the benefits which in this life do accompany or flow from justification, adoption, and sanctification?", a: "The benefits which in this life do accompany or flow from justification, adoption, and sanctification, are, assurance of God's love, peace of conscience, joy in the Holy Ghost, increase of grace, and perseverance therein to the end." },
+  { num: 39, q: "What is the duty which God requireth of man?", a: "The duty which God requireth of man is obedience to his revealed will." },
+  { num: 47, q: "What is the first commandment?", a: "The first commandment is, Thou shalt have no other gods before me." },
+  { num: 82, q: "Is any man able perfectly to keep the commandments of God?", a: "No mere man since the fall is able in this life perfectly to keep the commandments of God, but doth daily break them in thought, word, and deed." },
+  { num: 86, q: "What is faith in Jesus Christ?", a: "Faith in Jesus Christ is a saving grace, whereby we receive and rest upon him alone for salvation, as he is offered to us in the gospel." },
+  { num: 87, q: "What is repentance unto life?", a: "Repentance unto life is a saving grace, whereby a sinner, out of a true sense of his sin, and apprehension of the mercy of God in Christ, doth, with grief and hatred of his sin, turn from it unto God, with full purpose of, and endeavor after, new obedience." },
+  { num: 88, q: "What are the outward and ordinary means whereby Christ communicateth to us the benefits of redemption?", a: "The outward and ordinary means whereby Christ communicateth to us the benefits of redemption, are his ordinances, especially the Word, sacraments, and prayer; all which are made effectual to the elect for salvation." },
+  { num: 89, q: "How is the Word made effectual to salvation?", a: "The Spirit of God maketh the reading, but especially the preaching, of the Word, an effectual means of convincing and converting sinners, and of building them up in holiness and comfort, through faith, unto salvation." },
+  { num: 107, q: "What doth the conclusion of the Lord's Prayer teach us?", a: "The conclusion of the Lord's Prayer, which is, For thine is the kingdom, and the power, and the glory, forever, Amen, teacheth us to take our encouragement in prayer from God only, and in our prayers to praise him, ascribing kingdom, power, and glory to him; and in testimony of our desire, and assurance to be heard, we say, Amen." },
+];
+
+const ARCHAIC_PROMPT = "Westminster Shorter Catechism. Archaic English vocabulary: thou shalt, doth, maketh, continueth, applieth, effectual calling, sanctification, justification, imputed, pardoneth, accepteth, requireth, communicateth, teacheth, thine, therein, thereof, whereby, wherein, unto.";
+
+let mode = 'noprompt';
+let results = [];
+let currentRecording = null;
+let mediaRecorder = null;
+let audioChunks = [];
+
+function setMode(m) {
+  mode = m;
+  document.getElementById('mode-noprompt').className = 'mode-btn' + (m === 'noprompt' ? ' active' : '');
+  document.getElementById('mode-prompted').className = 'mode-btn' + (m === 'prompted' ? ' active' : '');
+}
+
+function normalize(text) {
+  return text.toLowerCase().replace(/[^\w\s']/g, '').replace(/\s+/g, ' ').trim();
+}
+
+function tokenize(text) {
+  return normalize(text).split(' ').filter(w => w.length > 0);
+}
+
+function alignWords(canonical, transcript) {
+  const ref = tokenize(canonical);
+  const hyp = tokenize(transcript);
+  const n = ref.length;
+  const m = hyp.length;
+
+  const dp = Array(n + 1).fill(null).map(() => Array(m + 1).fill(0));
+  const ops = Array(n + 1).fill(null).map(() => Array(m + 1).fill(''));
+
+  for (let i = 0; i <= n; i++) { dp[i][0] = i; ops[i][0] = 'D'; }
+  for (let j = 0; j <= m; j++) { dp[0][j] = j; ops[0][j] = 'I'; }
+  ops[0][0] = '';
+
+  for (let i = 1; i <= n; i++) {
+    for (let j = 1; j <= m; j++) {
+      if (ref[i-1] === hyp[j-1]) {
+        dp[i][j] = dp[i-1][j-1]; ops[i][j] = 'M';
+      } else {
+        const sub = dp[i-1][j-1] + 1;
+        const del = dp[i-1][j] + 1;
+        const ins = dp[i][j-1] + 1;
+        if (sub <= del && sub <= ins) { dp[i][j] = sub; ops[i][j] = 'S'; }
+        else if (del <= ins) { dp[i][j] = del; ops[i][j] = 'D'; }
+        else { dp[i][j] = ins; ops[i][j] = 'I'; }
+      }
+    }
+  }
+
+  const alignment = [];
+  let i = n, j = m;
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && ops[i][j] === 'M') {
+      alignment.unshift({ type: 'correct', ref: ref[i-1], hyp: hyp[j-1] }); i--; j--;
+    } else if (i > 0 && j > 0 && ops[i][j] === 'S') {
+      alignment.unshift({ type: 'substitution', ref: ref[i-1], hyp: hyp[j-1] }); i--; j--;
+    } else if (i > 0 && ops[i][j] === 'D') {
+      alignment.unshift({ type: 'deletion', ref: ref[i-1], hyp: null }); i--;
+    } else {
+      alignment.unshift({ type: 'insertion', ref: null, hyp: hyp[j-1] }); j--;
+    }
+  }
+
+  const errors = dp[n][m];
+  const wer = n > 0 ? (errors / n) * 100 : 0;
+  return { alignment, wer, errors, refLen: n, substitutions: alignment.filter(a => a.type === 'substitution').length, deletions: alignment.filter(a => a.type === 'deletion').length, insertions: alignment.filter(a => a.type === 'insertion').length };
+}
+
+function renderDiff(alignment) {
+  return alignment.map(a => {
+    if (a.type === 'correct') return `<span class="word-correct">${a.ref}</span>`;
+    if (a.type === 'substitution') return `<span class="word-wrong" title="expected: ${a.ref}">${a.hyp}</span>`;
+    if (a.type === 'deletion') return `<span class="word-missing" title="missing">[${a.ref}]</span>`;
+    if (a.type === 'insertion') return `<span class="word-extra" title="extra word">+${a.hyp}</span>`;
+  }).join(' ');
+}
+
+function renderCards() {
+  document.getElementById('cards').innerHTML = QUESTIONS.map((q, i) => `
+    <div class="card" id="card-${i}">
+      <div class="q-header">
+        <span class="q-num">QUESTION ${q.num}</span>
+        <span class="q-status pending" id="status-${i}">PENDING</span>
+      </div>
+      <div class="question">${q.q}</div>
+      <div><span class="hide-answer" onclick="toggleAnswer(${i})">Show/hide answer</span></div>
+      <div class="canonical" id="answer-${i}" style="display:none">
+        <div class="canonical-label">CANONICAL ANSWER</div>${q.a}
+      </div>
+      <div class="actions">
+        <button class="btn btn-record" id="btn-${i}" onclick="toggleRecord(${i})">Record</button>
+        <button class="btn btn-skip" onclick="skipQuestion(${i})">Skip</button>
+      </div>
+      <div id="result-${i}"></div>
+    </div>
+  `).join('');
+}
+
+function toggleAnswer(i) {
+  const el = document.getElementById(`answer-${i}`);
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+async function toggleRecord(i) {
+  if (currentRecording !== null && currentRecording !== i) return;
+
+  const btn = document.getElementById(`btn-${i}`);
+  const status = document.getElementById(`status-${i}`);
+
+  if (currentRecording === i) {
+    // Stop recording
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+      mediaRecorder.stop();
+    }
+    return;
+  }
+
+  // Start recording
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    currentRecording = i;
+    audioChunks = [];
+    btn.textContent = 'Stop';
+    btn.classList.add('recording');
+    status.textContent = 'RECORDING';
+    status.className = 'q-status recording';
+
+    document.getElementById(`result-${i}`).innerHTML = '<div class="transcript" style="margin-top:12px"><div class="transcript-label">RECORDING...</div><span style="color:#888;font-style:italic;">Speak now, tap Stop when done.</span></div>';
+
+    mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data.size > 0) audioChunks.push(e.data);
+    };
+
+    mediaRecorder.onstop = async () => {
+      stream.getTracks().forEach(t => t.stop());
+      btn.textContent = 'Sending...';
+      btn.disabled = true;
+      status.textContent = 'PROCESSING';
+      status.className = 'q-status processing';
+
+      const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+      const formData = new FormData();
+      formData.append('audio', audioBlob, 'recording.webm');
+      if (mode === 'prompted') {
+        formData.append('prompt', ARCHAIC_PROMPT);
+      }
+
+      try {
+        const res = await fetch('/transcribe', { method: 'POST', body: formData });
+        const data = await res.json();
+
+        if (data.error) {
+          status.textContent = 'ERROR';
+          status.className = 'q-status error';
+          document.getElementById(`result-${i}`).innerHTML = `<p style="color:#c0392b;margin-top:12px;font-size:14px;">Error: ${data.error}</p>`;
+          btn.textContent = 'Record Again';
+          btn.disabled = false;
+          currentRecording = null;
+          return;
+        }
+
+        const transcript = data.text || '';
+        const result = alignWords(QUESTIONS[i].a, transcript);
+        results[i] = { ...result, transcript, qNum: QUESTIONS[i].num, latencyMs: data.latencyMs, mode };
+
+        const werClass = result.wer <= 10 ? 'good' : result.wer <= 20 ? 'ok' : 'bad';
+        status.textContent = `WER: ${result.wer.toFixed(1)}%`;
+        status.className = `q-status ${result.wer <= 15 ? 'done' : 'error'}`;
+
+        document.getElementById(`result-${i}`).innerHTML = `
+          <div class="transcript" style="margin-top:12px">
+            <div class="transcript-label">GROQ WHISPER HEARD (${mode === 'prompted' ? 'with prompt' : 'no prompt'})</div>
+            ${transcript}
+          </div>
+          <div class="diff" style="margin-top:8px">
+            <div class="diff-label">WORD DIFF (green=correct, red strike=wrong, [brackets]=missing, +orange=extra)</div>
+            ${renderDiff(result.alignment)}
+          </div>
+          <div class="score ${werClass}">WER: ${result.wer.toFixed(1)}%</div>
+          <div class="wer-detail">${result.refLen} ref words | ${result.substitutions} subs, ${result.deletions} del, ${result.insertions} ins</div>
+          <div class="latency">Groq latency: ${data.latencyMs}ms | Audio duration: ${data.duration ? data.duration.toFixed(1) + 's' : 'N/A'}</div>
+        `;
+      } catch (err) {
+        status.textContent = 'ERROR';
+        status.className = 'q-status error';
+        document.getElementById(`result-${i}`).innerHTML = `<p style="color:#c0392b;margin-top:12px;font-size:14px;">Network error: ${err.message}</p>`;
+      }
+
+      btn.textContent = 'Record Again';
+      btn.disabled = false;
+      currentRecording = null;
+      updateProgress();
+      checkComplete();
+    };
+
+    mediaRecorder.start();
+  } catch (err) {
+    status.textContent = 'ERROR';
+    status.className = 'q-status error';
+    document.getElementById(`result-${i}`).innerHTML = `<p style="color:#c0392b;margin-top:12px;font-size:14px;">Mic error: ${err.message}</p>`;
+    currentRecording = null;
+  }
+}
+
+function skipQuestion(i) {
+  document.getElementById(`status-${i}`).textContent = 'SKIPPED';
+  document.getElementById(`status-${i}`).className = 'q-status pending';
+  results[i] = { skipped: true, qNum: QUESTIONS[i].num };
+  updateProgress();
+  checkComplete();
+}
+
+function updateProgress() {
+  const done = results.filter(r => r).length;
+  document.getElementById('progress').style.width = `${(done / QUESTIONS.length) * 100}%`;
+}
+
+function checkComplete() {
+  const done = results.filter(r => r).length;
+  if (done < QUESTIONS.length) return;
+
+  const tested = results.filter(r => r && !r.skipped);
+  if (tested.length === 0) return;
+
+  const totalErrors = tested.reduce((s, r) => s + r.errors, 0);
+  const totalWords = tested.reduce((s, r) => s + r.refLen, 0);
+  const overallWer = totalWords > 0 ? (totalErrors / totalWords) * 100 : 0;
+  const avgLatency = tested.reduce((s, r) => s + (r.latencyMs || 0), 0) / tested.length;
+
+  const problemWords = {};
+  tested.forEach(r => {
+    if (!r.alignment) return;
+    r.alignment.forEach(a => {
+      if (a.type === 'substitution') {
+        const key = a.ref;
+        if (!problemWords[key]) problemWords[key] = { expected: key, got: [], count: 0 };
+        problemWords[key].got.push(a.hyp);
+        problemWords[key].count++;
+      } else if (a.type === 'deletion') {
+        const key = a.ref;
+        if (!problemWords[key]) problemWords[key] = { expected: key, got: [], count: 0 };
+        problemWords[key].got.push('[omitted]');
+        problemWords[key].count++;
+      }
+    });
+  });
+
+  const sortedProblems = Object.values(problemWords).sort((a, b) => b.count - a.count).slice(0, 20);
+  const werClass = overallWer <= 10 ? 'good' : overallWer <= 20 ? 'ok' : 'bad';
+  const passClass = overallWer <= 15 ? 'pass' : 'fail';
+
+  const summary = document.getElementById('summary');
+  summary.style.display = 'block';
+  summary.innerHTML = `
+    <h2>Groq Whisper Test Results</h2>
+    <div class="summary-grid">
+      <div class="summary-stat">
+        <div class="num ${werClass}">${overallWer.toFixed(1)}%</div>
+        <div class="label">Overall WER</div>
+      </div>
+      <div class="summary-stat">
+        <div class="num">${tested.length}</div>
+        <div class="label">Questions tested</div>
+      </div>
+      <div class="summary-stat">
+        <div class="num">${Math.round(avgLatency)}ms</div>
+        <div class="label">Avg Groq latency</div>
+      </div>
+    </div>
+    <div class="verdict ${passClass}">
+      ${overallWer <= 15
+        ? 'PASS: Groq Whisper Large v3 is accurate enough. WER is under 15%. Use Groq free tier.'
+        : overallWer <= 25
+          ? 'MARGINAL: WER is ' + overallWer.toFixed(1) + '%. Try the "With Prompt" mode, or switch to Deepgram Nova-3 with keyterm prompting.'
+          : 'FAIL: WER is ' + overallWer.toFixed(1) + '%. Switch to Deepgram Nova-3 with keyterm prompting for archaic terms.'}
+    </div>
+    <h3 style="margin-top:20px;font-size:14px;">Per-Question Breakdown</h3>
+    <table>
+      <tr><th>Q#</th><th>WER</th><th>SUBS</th><th>DEL</th><th>INS</th><th>WORDS</th><th>LATENCY</th></tr>
+      ${tested.map(r => `
+        <tr>
+          <td>Q${r.qNum}</td>
+          <td style="color:${r.wer <= 15 ? '#2d8a5e' : '#c0392b'};font-weight:600">${r.wer.toFixed(1)}%</td>
+          <td>${r.substitutions}</td>
+          <td>${r.deletions}</td>
+          <td>${r.insertions}</td>
+          <td>${r.refLen}</td>
+          <td>${r.latencyMs || '—'}ms</td>
+        </tr>
+      `).join('')}
+    </table>
+    ${sortedProblems.length > 0 ? `
+      <div class="problem-words">
+        <h3 style="font-size:14px;margin-top:16px;">Most Misrecognized Words</h3>
+        <p style="font-size:12px;color:#888;margin-bottom:8px;">Hover for what Whisper heard instead.</p>
+        ${sortedProblems.map(p => `<span class="problem-word" title="Whisper heard: ${p.got.join(', ')}">${p.expected} (${p.count}x)</span>`).join(' ')}
+      </div>
+    ` : ''}
+    <button class="btn btn-copy" onclick="copyResults()">Copy Results as JSON</button>
+  `;
+  summary.scrollIntoView({ behavior: 'smooth' });
+}
+
+function copyResults() {
+  const tested = results.filter(r => r && !r.skipped);
+  const totalErrors = tested.reduce((s, r) => s + r.errors, 0);
+  const totalWords = tested.reduce((s, r) => s + r.refLen, 0);
+  const data = {
+    date: new Date().toISOString(),
+    model: 'whisper-large-v3 via Groq',
+    mode,
+    overallWER: totalWords > 0 ? ((totalErrors / totalWords) * 100).toFixed(1) + '%' : 'N/A',
+    questions: tested.map(r => ({
+      qNum: r.qNum, wer: r.wer.toFixed(1) + '%', transcript: r.transcript,
+      errors: { substitutions: r.substitutions, deletions: r.deletions, insertions: r.insertions },
+      latencyMs: r.latencyMs,
+    })),
+  };
+  navigator.clipboard.writeText(JSON.stringify(data, null, 2)).then(() => {
+    const btn = document.querySelector('.btn-copy');
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Copy Results as JSON', 2000);
+  });
+}
+
+renderCards();
+</script>
+</body>
+</html>
