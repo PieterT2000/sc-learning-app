@@ -81,6 +81,11 @@ It implements:
 - **localStorage** streak / mastery / badges with sequential-with-wraparound
   session batching.
 
+The Listening and Diff Result screens follow
+[`docs/wireframe.html`](docs/wireframe.html) — pulsing mic ring, chip-style
+green/red diff, a colour-banded score circle in Hard mode — and the app is set
+in **Noto Serif** (`next/font`, self-hosted after the first build).
+
 **Intentionally out of scope** for the prototype: database/auth, per-mode
 mastery tracking, spaced repetition, "Why This Matters" content, the design
 doc's whispered-prompt "Learning" mode, offline handling, and tuned

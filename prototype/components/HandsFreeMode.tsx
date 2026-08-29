@@ -78,6 +78,7 @@ export function HandsFreeMode({
   const skipRequestedRef = useRef(false); // set while reading a result aloud, when the user says "next question"
 
   const question = questions[index];
+  const isListening = phase === 'listening' || phase === 'capturing' || phase === 'stalled';
 
   const teardownAudio = useCallback(() => {
     vadRef.current?.stop();
@@ -407,7 +408,7 @@ export function HandsFreeMode({
 
       {phase === 'off' && (
         <div>
-          <p style={styles.eyebrow}>{MODE_LABELS[mode]}</p>
+          <p style={styles.questionNum}>{MODE_LABELS[mode]}</p>
           <button onClick={startSession} style={styles.primaryButton}>
             Start Listening
           </button>
@@ -419,20 +420,36 @@ export function HandsFreeMode({
 
       {phase !== 'off' && (
         <div>
-          <p style={styles.eyebrow}>
-            Question {index + 1} of {questions.length} · {MODE_LABELS[mode]}
-          </p>
+          <div style={styles.statusBar}>
+            <span>
+              Question {index + 1} of {questions.length}
+            </span>
+            <span>{MODE_LABELS[mode]}</span>
+          </div>
+          <div style={styles.questionNum}>QUESTION {question.id}</div>
           <h1 style={styles.question}>{question.question}</h1>
 
-          {statusText[phase] && <p style={styles.status}>{statusText[phase]}</p>}
-
-          {(phase === 'listening' || phase === 'capturing' || phase === 'stalled') && (
-            <div style={styles.meterTrack}>
-              <div style={{ ...styles.meterFill, width: `${Math.min(micLevel * 400, 100)}%` }} />
+          {isListening && (
+            <div style={styles.listeningIndicator}>
+              <div style={styles.pulseRing}>
+                <div
+                  style={{
+                    ...styles.micIcon,
+                    transform: `scale(${1 + Math.min(micLevel * 3, 0.6)})`,
+                  }}
+                >
+                  🎙️
+                </div>
+              </div>
+              <div style={styles.listeningText}>{statusText[phase] || 'Listening…'}</div>
             </div>
           )}
 
-          {(phase === 'listening' || phase === 'capturing' || phase === 'stalled') && (
+          {!isListening && statusText[phase] && (
+            <p style={styles.status}>{statusText[phase]}</p>
+          )}
+
+          {isListening && (
             <div style={styles.liveCaption}>
               {captionStatus === 'unsupported'
                 ? 'Live captions aren\u2019t supported in this browser (try Chrome).'
@@ -444,17 +461,26 @@ export function HandsFreeMode({
             </div>
           )}
 
+          {isListening && (
+            <div style={styles.hintRow}>
+              <span style={styles.hint}>
+                Tap &ldquo;I&rsquo;m done&rdquo; to stop &middot; or just pause a moment
+              </span>
+            </div>
+          )}
+
           {phase === 'result' && result && <DiffResult transcript={transcript} result={result} />}
 
-          <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
-            {(phase === 'listening' || phase === 'capturing' || phase === 'stalled') && (
+          {phase === 'result' && (
+            <button onClick={requestSkip} style={styles.primaryButton}>
+              Next question &rarr;
+            </button>
+          )}
+
+          <div style={styles.buttonRow}>
+            {isListening && (
               <button onClick={iAmDone} style={styles.secondaryButton}>
                 I&rsquo;m done — check it
-              </button>
-            )}
-            {phase === 'result' && (
-              <button onClick={requestSkip} style={styles.secondaryButton}>
-                Next question
               </button>
             )}
             {phase !== 'complete' && (
@@ -474,42 +500,65 @@ export function HandsFreeMode({
 
 const styles: Record<string, CSSProperties> = {
   error: { color: '#c0392b', fontSize: 14, marginBottom: 16 },
-  eyebrow: { fontSize: 13, color: '#888', marginBottom: 6 },
-  question: { fontSize: 21, lineHeight: 1.4, marginBottom: 20 },
+  statusBar: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    fontSize: 12,
+    color: '#888',
+    padding: '12px 0 16px',
+  },
+  questionNum: { fontSize: 13, color: '#888', letterSpacing: 1, marginBottom: 8 },
+  question: { fontSize: 20, fontWeight: 600, lineHeight: 1.5, marginBottom: 24, color: '#2a2a2a' },
   status: { fontSize: 15, color: '#555', marginBottom: 12 },
-  meterTrack: { height: 8, background: '#e5e5e5', borderRadius: 4, overflow: 'hidden', marginBottom: 8 },
-  meterFill: { height: '100%', background: '#1a1a2e', transition: 'width 80ms linear' },
+  listeningIndicator: { textAlign: 'center', margin: '40px 0' },
+  pulseRing: {
+    width: 120,
+    height: 120,
+    borderRadius: '50%',
+    border: '3px solid #3d5a80',
+    margin: '0 auto',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    animation: 'pulse 2s infinite',
+  },
+  micIcon: { fontSize: 40, transition: 'transform 100ms ease-out' },
+  listeningText: { marginTop: 16, fontSize: 14, color: '#3d5a80', fontWeight: 500 },
   liveCaption: {
-    marginTop: 16,
+    marginTop: 24,
     padding: 16,
     background: '#faf9f6',
     borderRadius: 12,
     fontSize: 15,
     lineHeight: 1.6,
     color: '#555',
-    minHeight: 24,
+    minHeight: 60,
     fontStyle: 'italic',
   },
+  hintRow: { marginTop: 24, textAlign: 'center' },
+  hint: { fontSize: 12, color: '#888' },
+  buttonRow: { display: 'flex', gap: 10, marginTop: 16 },
   primaryButton: {
     width: '100%',
-    padding: '16px 24px',
+    padding: 16,
     fontSize: 16,
     fontWeight: 600,
-    borderRadius: 10,
+    borderRadius: 16,
     border: 'none',
-    background: '#1a1a2e',
-    color: 'white',
+    background: '#3d5a80',
+    color: '#fff',
     cursor: 'pointer',
+    marginTop: 16,
   },
   secondaryButton: {
     flex: 1,
     padding: '14px 12px',
     fontSize: 14,
     fontWeight: 600,
-    borderRadius: 10,
-    border: '1px solid #ccc',
+    borderRadius: 12,
+    border: '1px solid #d0cec8',
     background: 'transparent',
-    color: '#1a1a2e',
+    color: '#3d5a80',
     cursor: 'pointer',
   },
   exitButton: {
@@ -517,7 +566,7 @@ const styles: Record<string, CSSProperties> = {
     padding: '14px 12px',
     fontSize: 14,
     fontWeight: 600,
-    borderRadius: 10,
+    borderRadius: 12,
     border: '1px solid #c0392b',
     background: 'transparent',
     color: '#c0392b',

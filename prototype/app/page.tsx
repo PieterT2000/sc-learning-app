@@ -60,7 +60,7 @@ const styles: Record<string, CSSProperties> = {
     maxWidth: 420,
     margin: '0 auto',
     padding: '2.5rem 1.5rem',
-    fontFamily: '-apple-system, BlinkMacSystemFont, system-ui, sans-serif',
+    // Font comes from Noto Serif on <body> (app/layout.tsx) via next/font.
     background: '#f8f7f4',
     minHeight: '100vh',
   },

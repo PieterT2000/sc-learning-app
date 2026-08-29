@@ -55,6 +55,20 @@ npx ngrok http 3000
 ```
 Use the `https://*.ngrok-free.app` URL it gives you on your phone.
 
+## Look & feel
+
+The default typeface is **Noto Serif**, loaded with `next/font/google` in
+`app/layout.tsx` (downloaded at build time and self-hosted — the first
+`npm run build` / `npm run dev` needs network; after that it works offline).
+The keyframes it can't express inline live in `app/globals.css`.
+
+The **Listening** and **Diff Result** screens follow
+[`../docs/wireframe.html`](../docs/wireframe.html): a pulsing mic ring (its
+glyph scales with your live input level), a warm `#faf9f6` transcript panel,
+chip-style green/red word diff, and — in Hard mode — a colour-banded score
+circle. Easy/Medium show the verdict large and centred instead of a circle
+(they have no percentage), with the written feedback in a left-accented callout.
+
 ## Two input modes
 
 - **Manual** — tap to start/stop recording. Use this first to sanity-check
@@ -214,7 +228,8 @@ npm run test:scoring
 ```
 app/
   page.tsx                     — view switcher (Home / Hands-Free / Manual)
-  layout.tsx                   — minimal root layout
+  layout.tsx                   — root layout; loads Noto Serif via next/font
+  globals.css                  — @keyframes pulse (the one thing inline styles can't do)
   api/transcribe/route.ts      — proxies audio to Groq Whisper large-v3
   api/feedback/route.ts        — phrases the Easy/Medium result via a Groq LLM
 components/
