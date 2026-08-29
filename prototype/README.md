@@ -90,16 +90,35 @@ Easy/Medium add a written verdict on top: **"Word perfect"** when you recited
 it exactly, or credit for getting every key idea (and, in Easy, for getting
 them in order too) when you didn't.
 
+When more than a handful of key words are missing (`MAX_LISTED_MISSING` in
+`lib/scoringConfig.ts`), feedback stops quoting them one by one — a long
+`"you didn't say X, Y, Z…"` list is noise once a whole chunk is gone — and
+says how much was missing instead.
+
 The Easy/Medium explanation is **hybrid**: the deterministic result is
 handed to a small Groq LLM (`/api/feedback`, model in `lib/scoringConfig.ts`)
 purely to phrase it naturally. If that call fails or `GROQ_API_KEY` is unset,
 it silently falls back to a templated sentence built from the same facts —
 the grade itself never depends on the model.
 
-**Hands-free is built to work with the screen off.** It reads the whole
-result aloud — the generated Easy/Medium feedback verbatim, or the Hard-mode
-score plus its breakdown — before moving to the next question. The question is
-still shown on screen, but you shouldn't need to look at it.
+## Feedback level (hands-free)
+
+**Hands-free is built to work with the screen off** — it reads the result
+aloud before moving on. How much it says is a Home-screen setting, remembered
+in `localStorage` (`lib/feedbackLevels.ts`, `progressStore.ts`):
+
+- **Brief** — one spoken line: where you stand, no word list.
+- **Full** — the comprehensive feedback: what you missed and how to fix it
+  (the Hard-mode score + breakdown, or the generated Easy/Medium explanation).
+- **Say answer** — a brief line, then the correct answer read back slowly.
+- **Full + answer** — full feedback, then the answer read back.
+
+While any of these is playing, saying **"next question"** (or "skip", or
+tapping **Next question**) cuts it short and moves on. The listener for that
+is `lib/skipListener.ts` — same on-device `SpeechRecognition` as the live
+captions, with the same iOS caveats; if it can't start, the result just plays
+to the end and the button still works. The question is always on screen, but
+you shouldn't need to look.
 
 Run the grader's checks with:
 
@@ -177,6 +196,9 @@ npm run test:scoring
   hand-picked starting point, not tuned against a corpus of real recitations
 - Easy/Medium feedback wording depends on a Groq LLM call when the key is set;
   the deterministic template fallback is plainer but always correct
+- "Next question" voice-skip relies on `SpeechRecognition` (same support gaps
+  as live captions); in a very echoey room it could in principle trip on the
+  TTS itself. The on-screen Next button is the reliable path.
 - The "Learning" mode from the design doc (whispered prompts when you stall)
   is not built — the third slot is "Medium" instead
 - Session picking is sequential-with-wraparound, not spaced repetition
@@ -196,16 +218,18 @@ app/
   api/transcribe/route.ts      — proxies audio to Groq Whisper large-v3
   api/feedback/route.ts        — phrases the Easy/Medium result via a Groq LLM
 components/
-  HomeScreen.tsx                — Easy/Medium/Hard selector, streak, badges, progress
+  HomeScreen.tsx                — mode + feedback-level selectors, streak, badges, progress
   ManualMode.tsx                 — tap-to-record flow + mode toggle (dev/testing)
-  HandsFreeMode.tsx              — speak → listen → auto-detect silence → score → loop
-  DiffResult.tsx                 — mode-aware result display (score+diff, or prose)
+  HandsFreeMode.tsx              — speak → listen → silence → score → read result aloud → loop
+  DiffResult.tsx                 — mode-aware result display (score+diff, or prose+diff)
 lib/
-  scoring.ts                    — the Easy/Medium/Hard grader (deterministic)
-  scoringConfig.ts              — function-word list, STT equivalence rules, LLM model
+  scoring.ts                    — the Easy/Medium/Hard grader + brief verdict (deterministic)
+  scoringConfig.ts              — function-word list, STT equivalence rules, list cap, LLM model
   scoring.selftest.ts           — `npm run test:scoring` checks for the grader
+  feedbackLevels.ts             — the four hands-free feedback levels
   wordDiff.ts                   — word-level diff-match-patch wrapper (Hard mode)
   feedbackClient.ts             — calls /api/feedback, falls back to the template
+  skipListener.ts               — "next question" voice-skip during result playback
   audioFormat.ts                — cross-browser MediaRecorder mime-type detection
   transcribeAudio.ts            — client for the /api/transcribe route
   tts.ts                        — Web Speech API wrapper (speak the question aloud)

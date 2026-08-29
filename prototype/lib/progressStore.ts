@@ -1,6 +1,8 @@
 import seedQuestions from './seed.json';
+import { DEFAULT_FEEDBACK_LEVEL, type FeedbackLevel } from './feedbackLevels';
 
 const STORAGE_KEY = 'catechism-voice-progress-v1';
+const SETTINGS_KEY = 'catechism-voice-settings-v1';
 const MASTERY_THRESHOLD = 90; // score percent at/above which a question counts as "mastered"
 
 export interface ProgressState {
@@ -74,6 +76,35 @@ export function recordSessionComplete(): ProgressState {
 
 export function getMasteredCount(state: ProgressState): number {
   return Object.values(state.bestScores).filter((score) => score >= MASTERY_THRESHOLD).length;
+}
+
+// --- settings (kept separate from progress) -----------------------------
+
+export interface Settings {
+  feedbackLevel: FeedbackLevel;
+}
+
+const DEFAULT_SETTINGS: Settings = {
+  feedbackLevel: DEFAULT_FEEDBACK_LEVEL,
+};
+
+export function loadSettings(): Settings {
+  if (typeof window === 'undefined') return DEFAULT_SETTINGS;
+  try {
+    const raw = window.localStorage.getItem(SETTINGS_KEY);
+    if (!raw) return DEFAULT_SETTINGS;
+    return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+  } catch {
+    return DEFAULT_SETTINGS;
+  }
+}
+
+export function saveSettings(patch: Partial<Settings>): Settings {
+  const next = { ...loadSettings(), ...patch };
+  if (typeof window !== 'undefined') {
+    window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
+  }
+  return next;
 }
 
 export interface CatechismQuestion {

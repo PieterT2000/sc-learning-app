@@ -7,7 +7,8 @@
  * The hybrid LLM feedback layer (app/api/feedback) is deliberately not
  * exercised here; only the local, authoritative judgment is.
  */
-import { scoreAnswer, type Mode, type ProseScore, type HardScore } from './scoring';
+import { scoreAnswer, briefVerdict, type Mode, type ProseScore, type HardScore } from './scoring';
+import { MAX_LISTED_MISSING } from './scoringConfig';
 
 const Q1 = 'Man’s chief end is to glorify God, and to enjoy him for ever.';
 const Q4 =
@@ -109,6 +110,43 @@ console.log('medium mode');
 {
   const r = prose('medium', Q4, 'truth goodness justice holiness power wisdom being unchangeable eternal infinite Spirit God');
   check('Q4 all key words reversed -> medium: not wordPerfect, not orderCorrect', !r.wordPerfect && !r.orderCorrect, r);
+}
+
+console.log('missing-word cap');
+{
+  // Only the first few words of a long answer -> feedback must NOT quote them all
+  const r = prose('easy', Q4, 'God is a Spirit');
+  const quotedTail = r.feedback.includes('"truth"') || r.feedback.includes('"goodness"');
+  check(
+    `Q4 mostly missing (${r.missingKeyWords.length} > ${MAX_LISTED_MISSING}) -> feedback summarises, no long quoted list`,
+    r.missingKeyWords.length > MAX_LISTED_MISSING && !quotedTail && /key idea/i.test(r.feedback),
+    r.feedback
+  );
+}
+{
+  const r = hard(Q4, 'God is a Spirit');
+  check(
+    'Q4 hard, mostly missing -> breakdown gives a count, not every word',
+    /\d+ words/.test(r.breakdown) && !r.breakdown.includes('"truth"'),
+    r.breakdown
+  );
+}
+
+console.log('brief verdict');
+{
+  check('hard exact -> "Word perfect."', briefVerdict(hard(Q1, 'Mans chief end is to glorify God and to enjoy him forever')) === 'Word perfect.', null);
+}
+{
+  const v = briefVerdict(hard(Q4, 'God is a Spirit'));
+  check('hard big miss -> percent + "most of the answer was missing"', /percent/.test(v) && /most of the answer was missing/.test(v), v);
+}
+{
+  const v = briefVerdict(prose('easy', Q1, 'Mans chief end is to glorify God and to enjoy him forever'));
+  check('easy exact -> "Word perfect."', v === 'Word perfect.', v);
+}
+{
+  const v = briefVerdict(prose('easy', Q4, 'God is a Spirit'));
+  check('easy big miss -> "Not quite" + coverage, no quoted words', /^Not quite/.test(v) && !v.includes('"'), v);
 }
 
 console.log(failures === 0 ? '\nall scoring checks passed' : `\n${failures} scoring check(s) FAILED`);

@@ -35,6 +35,8 @@ export async function fetchFeedbackText(
         missingKeyWords: score.missingKeyWords,
         extraKeyWords: score.extraKeyWords,
         outOfOrder: score.outOfOrder,
+        keyWordsMatched: score.keyWordsMatched,
+        keyWordsTotal: score.keyWordsTotal,
       }),
     });
     if (!res.ok) return score.feedback;
