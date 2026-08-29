@@ -11,10 +11,9 @@ import {
 } from '@/lib/feedbackLevels';
 import { getSupportedMimeType, extensionForMimeType } from '@/lib/audioFormat';
 import { transcribeAudio } from '@/lib/transcribeAudio';
-import { speak, primeVoices } from '@/lib/tts';
+import { speak, primeVoices, abortSpeech } from '@/lib/tts';
 import { startVoiceActivityMonitor, type VoiceActivityHandle } from '@/lib/voiceActivity';
 import { startLiveCaption, type LiveCaptionHandle, type LiveCaptionStatus } from '@/lib/liveCaption';
-import { startSkipListener, type SkipListenerHandle } from '@/lib/skipListener';
 import { HANDS_FREE_CONFIG as CFG } from '@/lib/handsFreeConfig';
 import { recordAnswer, recordSessionComplete, type CatechismQuestion } from '@/lib/progressStore';
 import { DiffResult } from './DiffResult';
@@ -85,7 +84,6 @@ export function HandsFreeMode({
   const mimeTypeRef = useRef('');
   const vadRef = useRef<VoiceActivityHandle | null>(null);
   const captionRef = useRef<LiveCaptionHandle | null>(null);
-  const skipRef = useRef<SkipListenerHandle | null>(null);
 
   const wakeLockRef = useRef<WakeLockSentinelLike | null>(null);
 
@@ -95,7 +93,7 @@ export function HandsFreeMode({
   const listenStartRef = useRef(0);
   const silenceStartRef = useRef<number | null>(null);
   const captureFinishedRef = useRef(false); // guards against double-firing finishCapture
-  const skipRequestedRef = useRef(false); // set while reading a result aloud, when the user says "next question"
+  const skipRequestedRef = useRef(false); // set while reading a result aloud, when the user taps "Next question"
 
   const question = questions[index];
   const isListening = phase === 'listening' || phase === 'capturing' || phase === 'stalled';
@@ -136,8 +134,6 @@ export function HandsFreeMode({
     vadRef.current = null;
     captionRef.current?.stop();
     captionRef.current = null;
-    skipRef.current?.stop();
-    skipRef.current = null;
     if (recorderRef.current && recorderRef.current.state !== 'inactive') {
       recorderRef.current.onstop = null;
       recorderRef.current.stop();
@@ -145,11 +141,12 @@ export function HandsFreeMode({
     recorderRef.current = null;
   }, []);
 
-  // Cuts short whatever result is being read aloud and lets the loop advance.
+  // Cuts short whatever result is being read aloud (the "Next question" button)
+  // and lets the loop advance.
   const requestSkip = useCallback(() => {
     if (skipRequestedRef.current) return;
     skipRequestedRef.current = true;
-    if (typeof window !== 'undefined') window.speechSynthesis?.cancel();
+    abortSpeech();
   }, []);
 
   // A pause that also ends early if the user asks to skip (or the session ends).
@@ -170,7 +167,7 @@ export function HandsFreeMode({
   const endSession = useCallback(
     (reason?: string, completed = false) => {
       activeRef.current = false;
-      if (typeof window !== 'undefined') window.speechSynthesis?.cancel();
+      abortSpeech();
       releaseWakeLock();
       teardownAudio();
       streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -188,12 +185,11 @@ export function HandsFreeMode({
   useEffect(() => {
     return () => {
       activeRef.current = false;
-      if (typeof window !== 'undefined') window.speechSynthesis?.cancel();
+      abortSpeech();
       wakeLockRef.current?.release().catch(() => {});
       wakeLockRef.current = null;
       vadRef.current?.stop();
       captionRef.current?.stop();
-      skipRef.current?.stop();
       streamRef.current?.getTracks().forEach((t) => t.stop());
     };
   }, []);
@@ -303,8 +299,6 @@ export function HandsFreeMode({
       setTranscript('');
       setResult(null);
       skipRequestedRef.current = false;
-      skipRef.current?.stop();
-      skipRef.current = null;
       setPhase('asking');
 
       await speak(questions[qIndex].question);
@@ -354,9 +348,8 @@ export function HandsFreeMode({
 
       // Read the result aloud (hands-free is meant to work with the screen
       // off), following the chosen feedback level. Any of it can be cut short
-      // by the user saying "next question" (or tapping Next).
+      // by the user tapping "Next question".
       skipRequestedRef.current = false;
-      skipRef.current = startSkipListener(requestSkip);
 
       const full = feedbackLevelIsFull(feedbackLevel);
       const utterances: Array<{ text: string; rate?: number }> = [];
@@ -392,8 +385,6 @@ export function HandsFreeMode({
         await sleepUnlessSkipped(CFG.resultPauseMs);
       }
 
-      skipRef.current?.stop();
-      skipRef.current = null;
       const wasSkipped = skipRequestedRef.current;
       skipRequestedRef.current = false;
       if (!activeRef.current) return;
@@ -414,7 +405,7 @@ export function HandsFreeMode({
       startCapture();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [goToQuestion, endSession, startCapture, questions, mode, feedbackLevel, requestSkip, sleepUnlessSkipped]);
+  }, [goToQuestion, endSession, startCapture, questions, mode, feedbackLevel, sleepUnlessSkipped]);
 
   const startSession = useCallback(async () => {
     setError(null);
@@ -440,6 +431,7 @@ export function HandsFreeMode({
   }, [phase, finishCapture]);
 
   const repeatQuestion = useCallback(() => {
+    abortSpeech();
     teardownAudio();
     void goToQuestion(currentIndexRef.current);
   }, [goToQuestion, teardownAudio]);

@@ -15,7 +15,7 @@ doc's client experience** (Approach B). What already works end-to-end:
 | Core loop: record → transcribe → diff → score | ✅ Done, all three modes |
 | Groq Whisper STT proxy with archaic prompt hint | ✅ `app/api/transcribe` |
 | TTS reads the question aloud | ✅ **Better than planned** — Azure `en-GB` neural voice (`app/api/tts`) with browser `speechSynthesis` fallback, not just SpeechSynthesis |
-| Hands-free full session loop, screen untouched | ✅ Incl. screen wake lock, "next question" voice-skip, spoken feedback |
+| Hands-free full session loop, screen untouched | ✅ Incl. screen wake lock, spoken feedback, a Next-question button to skip it |
 | Three grading modes | ⚠️ Easy / **Medium** / Hard — design wants Easy / **Learning** / Hard |
 | Word-level visual diff | ✅ `lib/wordDiff.ts` + chip UI matching the wireframe |
 | Streaks / mastery / badges | ⚠️ Works, but `localStorage` only and a single 0–100 track, not per-mode |
