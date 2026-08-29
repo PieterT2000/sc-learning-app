@@ -12,8 +12,11 @@ const SYSTEM_PROMPT =
   'an exact checker and are authoritative: never contradict them, never re-grade, ' +
   'never state a percentage or score. Do not add theological commentary or ' +
   'explain doctrine. In 1-2 plain sentences, tell them how what they said lines ' +
-  'up with the answer and what to fix. Address them as "you". Write plain prose ' +
-  'only - no markdown, bold, bullet points, or headings.';
+  'up with the answer and what to fix. If they recited it word for word, lead ' +
+  'by telling them it was word perfect. If they got every key idea in the right ' +
+  'order, give them credit for the order too. Address them as "you". Write plain ' +
+  'prose only - no markdown, bold, bullet points, or headings. This will be read ' +
+  'aloud, so no lists or symbols.';
 
 /**
  * Phrases the deterministic easy/medium result as natural feedback.
@@ -31,6 +34,8 @@ export async function POST(req: NextRequest) {
       reference,
       transcript,
       passed,
+      wordPerfect,
+      orderCorrect,
       missingKeyWords = [],
       extraKeyWords = [],
       outOfOrder,
@@ -50,16 +55,22 @@ export async function POST(req: NextRequest) {
       `Canonical answer: "${reference}"`,
       `What the learner said: "${transcript || '(nothing was captured)'}"`,
       `Verdict already decided: ${passed ? 'PASS' : 'NOT YET'}.`,
-      missingKeyWords.length
+      wordPerfect ? 'They recited it word for word, exactly as written.' : null,
+      !wordPerfect && missingKeyWords.length
         ? `Key words they did not say: ${missingKeyWords.join(', ')}.`
-        : 'They said every key word.',
-      extraKeyWords.length
+        : !wordPerfect
+          ? 'They said every key word.'
+          : null,
+      !wordPerfect && extraKeyWords.length
         ? `Words they added that are not in the answer: ${extraKeyWords.join(', ')}.`
         : null,
-      mode === 'medium'
+      !wordPerfect && mode === 'medium'
         ? outOfOrder
           ? 'Their key words came in a different order from the answer.'
           : 'Their key words were in the right order.'
+        : null,
+      !wordPerfect && mode === 'easy' && orderCorrect
+        ? 'They also had the key words in the answer’s order (Easy mode does not require this).'
         : null,
     ]
       .filter(Boolean)

@@ -76,6 +76,16 @@ console.log('easy mode');
   const r = prose('easy', Q1, 'chief end Man’s glorify God enjoy him forever');
   check('Q1 no function words at all -> still a pass in easy', r.passed, r);
 }
+{
+  // exact recitation -> credited as word perfect even in easy
+  const r = prose('easy', Q1, 'Mans chief end is to glorify God and to enjoy him forever');
+  check('Q1 recited exactly -> easy pass, wordPerfect, orderCorrect', r.passed && r.wordPerfect && r.orderCorrect, r);
+}
+{
+  // every key word in the answer's order, only a small word dropped
+  const r = prose('easy', Q1, 'Man’s chief end to glorify God and to enjoy him forever');
+  check('Q1 key words in order, "is" dropped -> easy pass, not wordPerfect, orderCorrect', r.passed && !r.wordPerfect && r.orderCorrect, r);
+}
 
 console.log('medium mode');
 {
@@ -91,6 +101,14 @@ console.log('medium mode');
 {
   const r = prose('medium', Q1, 'Man’s chief end glorify God enjoy him forever');
   check('Q1 key words in order, only small words missing -> pass', r.passed, r);
+}
+{
+  const r = prose('medium', Q1, 'Mans chief end is to glorify God and to enjoy him forever');
+  check('Q1 recited exactly -> medium pass, wordPerfect', r.passed && r.wordPerfect, r);
+}
+{
+  const r = prose('medium', Q4, 'truth goodness justice holiness power wisdom being unchangeable eternal infinite Spirit God');
+  check('Q4 all key words reversed -> medium: not wordPerfect, not orderCorrect', !r.wordPerfect && !r.orderCorrect, r);
 }
 
 console.log(failures === 0 ? '\nall scoring checks passed' : `\n${failures} scoring check(s) FAILED`);

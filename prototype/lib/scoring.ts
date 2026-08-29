@@ -17,6 +17,12 @@ export interface ProseScore {
   outOfOrder: boolean;
   keyWordsTotal: number;
   keyWordsMatched: number;
+  /** Recited word-for-word (would also pass Hard mode). */
+  wordPerfect: boolean;
+  /** Every key word present AND in the answer's order (the Medium bar). */
+  orderCorrect: boolean;
+  /** Word-level green/red diff against the answer, shown in every mode. */
+  diffs: Array<{ op: WordOp; word: string }>;
   /**
    * Human-readable explanation. `scoreAnswer` fills this with a deterministic
    * template; the hybrid feedback layer (lib/feedbackClient.ts) may replace it
@@ -160,6 +166,14 @@ function scoreProse(mode: 'easy' | 'medium', reference: string, hypothesis: stri
     ? missingKeyWords.length === 0
     : missingKeyWords.length === 0 && !outOfOrder;
 
+  const orderCorrect = missingKeyWords.length === 0 && !outOfOrder;
+
+  // The word-level diff is the same one Hard mode uses (inputs are already
+  // normalised). It gives the green/red display for every mode, and its
+  // "all correct" state is what "word perfect" means here.
+  const { diffs } = wordLevelDiff(reference, hypothesis);
+  const wordPerfect = diffs.length > 0 && diffs.every((d) => d.op === 0);
+
   return {
     mode,
     passed,
@@ -168,7 +182,10 @@ function scoreProse(mode: 'easy' | 'medium', reference: string, hypothesis: stri
     outOfOrder,
     keyWordsTotal,
     keyWordsMatched,
-    feedback: templateFeedback(mode, passed, missingKeyWords, extraKeyWords, outOfOrder),
+    wordPerfect,
+    orderCorrect,
+    diffs,
+    feedback: templateFeedback(mode, passed, missingKeyWords, extraKeyWords, outOfOrder, wordPerfect, orderCorrect),
   };
 }
 
@@ -181,16 +198,27 @@ export function templateFeedback(
   passed: boolean,
   missing: string[],
   extra: string[],
-  outOfOrder: boolean
+  outOfOrder: boolean,
+  wordPerfect: boolean,
+  orderCorrect: boolean
 ): string {
+  // Word-for-word: say so and stop - there's nothing to correct.
+  if (wordPerfect) {
+    return 'That was word perfect — every word exactly as the catechism has it.';
+  }
+
   const parts: string[] = [];
 
   if (passed) {
-    parts.push(
-      mode === 'easy'
-        ? 'You had every key idea from the answer. Easy mode ignores word order and the small connecting words, so this is a full answer.'
-        : 'You had every key idea, and in the answer’s order. Medium mode ignores the small connecting words.'
-    );
+    if (mode === 'easy') {
+      parts.push(
+        orderCorrect
+          ? 'You had every key idea, and in the answer’s order too. Easy mode only needs the ideas, so this counts as a full answer.'
+          : 'You had every key idea from the answer. Easy mode ignores word order and the small connecting words, so this is a full answer.'
+      );
+    } else {
+      parts.push('You had every key idea, and in the answer’s order. Medium mode ignores the small connecting words.');
+    }
   }
 
   if (missing.length) {

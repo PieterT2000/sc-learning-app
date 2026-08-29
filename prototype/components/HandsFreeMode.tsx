@@ -249,29 +249,28 @@ export function HandsFreeMode({
               );
       recordAnswer(q.id, pct);
 
-      // Hybrid feedback for easy/medium: show the deterministic template now,
-      // swap in the LLM-phrased version once it lands (never blocks the loop).
-      if (scored.mode !== 'hard') {
-        void fetchFeedbackText(scored, q.answer, text).then((fb) => {
-          if (activeRef.current) {
-            setResult((cur) => (cur && cur.mode !== 'hard' ? { ...cur, feedback: fb } : cur));
-          }
-        });
+      // Hands-free is meant to work with the phone in your pocket: read the
+      // whole result aloud, not just a verdict.
+      let spoken: string;
+      if (scored.mode === 'hard') {
+        spoken = scored.exact
+          ? 'Word perfect. One hundred percent.'
+          : `${scored.scorePercent} percent. ${scored.breakdown}`;
+      } else {
+        // Wait for the LLM-phrased feedback (falls back to the deterministic
+        // template on failure or timeout), show it, then speak it.
+        const feedback = await fetchFeedbackText(scored, q.answer, text);
+        if (!activeRef.current) return;
+        setResult((cur) => (cur && cur.mode !== 'hard' ? { ...cur, feedback } : cur));
+        spoken = feedback;
       }
 
-      const spoken =
-        scored.mode === 'hard'
-          ? `${scored.scorePercent} percent.`
-          : scored.passed
-            ? scored.mode === 'easy'
-              ? 'That’s the key ideas.'
-              : 'Key ideas, in order. Nicely done.'
-            : 'You missed part of the idea — have a look at the notes on screen.';
       await speak(spoken);
       if (!activeRef.current) return;
 
-      const pause = scored.mode === 'hard' ? CFG.resultPauseMs : CFG.proseResultPauseMs;
-      await new Promise((resolve) => setTimeout(resolve, pause));
+      // Short breath after the spoken result before the next question. The
+      // feedback itself has already been read in full by speak() above.
+      await new Promise((resolve) => setTimeout(resolve, CFG.resultPauseMs));
       if (!activeRef.current) return;
 
       if (currentIndexRef.current < questions.length - 1) {
