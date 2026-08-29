@@ -66,9 +66,12 @@ It implements:
 - **Manual mode** — tap to record; for isolating mic/Groq/diff issues per device.
 - **Hands-Free mode** — speaks the question, listens, auto-detects when you stop
   talking, then reads the result aloud and loops a 5-question session with no
-  taps and no need to look at the screen. A Home-screen setting controls how
+  taps and no need to look at the screen. A **Settings** screen controls how
   much it says (brief line / full feedback / read the answer back / both), and
   saying **"next question"** cuts any of it short.
+- **Question sets** — the Home screen lets you pick what a session draws from:
+  the whole catechism, a block of ten, or one of the standard WSC themes /
+  topics (`lib/questionSets.ts`).
 - **Three grading modes** (`lib/scoring.ts`) — Easy (key ideas, any order),
   Medium (key ideas, in order), Hard (exact words, with an STT-normalisation
   pass so "for ever" ↔ "forever" isn't penalised). Easy/Medium return a written

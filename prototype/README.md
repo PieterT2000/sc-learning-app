@@ -15,6 +15,22 @@ once everything's mastered. This is a simple sequential picker, not real
 spaced repetition - good enough to prove the loop, not a finished study
 algorithm.
 
+The **QUESTIONS** selector on the Home screen narrows the pool the batch is
+drawn from: the whole catechism, a block of ten (`Q1-10`, `Q11-20`, …), one of
+the seven standard themes (`Foundations & Nature of God`, `The Fall, Sin &
+Human Misery`, …), or a finer topic (`The three offices of Christ`, `4th
+Commandment - the Sabbath`, …). The sets are contiguous id ranges defined in
+`lib/questionSets.ts`; the choice is remembered in `localStorage`. If a set has
+fewer than five questions the session is just that set.
+
+## Settings
+
+Feedback verbosity (what the app says out loud after each attempt) now lives on
+a separate **Settings** screen (`components/SettingsScreen.tsx`), reached from
+the ⚙ link on the Home screen, rather than cluttering the Home screen itself.
+Both the feedback level and the question set are stored under the same
+`catechism-voice-settings-v1` key.
+
 ## Setup
 
 ```bash
@@ -118,8 +134,9 @@ the grade itself never depends on the model.
 ## Feedback level (hands-free)
 
 **Hands-free is built to work with the screen off** — it reads the result
-aloud before moving on. How much it says is a Home-screen setting, remembered
-in `localStorage` (`lib/feedbackLevels.ts`, `progressStore.ts`):
+aloud before moving on. How much it says is set on the **Settings** screen
+(⚙ from Home) and remembered in `localStorage`
+(`lib/feedbackLevels.ts`, `progressStore.ts`):
 
 - **Brief** — one spoken line: where you stand, no word list.
 - **Full** — the comprehensive feedback: what you missed and how to fix it
@@ -227,13 +244,14 @@ npm run test:scoring
 
 ```
 app/
-  page.tsx                     — view switcher (Home / Hands-Free / Manual)
+  page.tsx                     — view switcher (Home / Settings / Hands-Free / Manual)
   layout.tsx                   — root layout; loads Noto Serif via next/font
   globals.css                  — @keyframes pulse (the one thing inline styles can't do)
   api/transcribe/route.ts      — proxies audio to Groq Whisper large-v3
   api/feedback/route.ts        — phrases the Easy/Medium result via a Groq LLM
 components/
-  HomeScreen.tsx                — mode + feedback-level selectors, streak, badges, progress
+  HomeScreen.tsx                — mode + question-set selectors, streak, badges, progress
+  SettingsScreen.tsx            — feedback-level selector (reached via ⚙ from Home)
   ManualMode.tsx                 — tap-to-record flow + mode toggle (dev/testing)
   HandsFreeMode.tsx              — speak → listen → silence → score → read result aloud → loop
   DiffResult.tsx                 — mode-aware result display (score+diff, or prose+diff)
@@ -242,6 +260,7 @@ lib/
   scoringConfig.ts              — function-word list, STT equivalence rules, list cap, LLM model
   scoring.selftest.ts           — `npm run test:scoring` checks for the grader
   feedbackLevels.ts             — the four hands-free feedback levels
+  questionSets.ts               — named question collections (number ranges + WSC themes)
   wordDiff.ts                   — word-level diff-match-patch wrapper (Hard mode)
   feedbackClient.ts             — calls /api/feedback, falls back to the template
   skipListener.ts               — "next question" voice-skip during result playback
