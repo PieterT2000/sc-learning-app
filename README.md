@@ -107,8 +107,8 @@ Use the `https://*.ngrok-free.app` URL on the phone.
   `/api/tts`, browser `speechSynthesis` fallback), listens, and auto-detects when
   you've stopped talking to submit for scoring. Loops through the whole chosen
   question set with no taps and no need to look at the screen. Holds a **screen
-  wake lock** so a slow recitation isn't cut off by the display sleeping, and
-  saying **"next question"** skips ahead.
+  wake lock** so a slow recitation isn't cut off by the display sleeping; a
+  **Next question →** button skips the spoken feedback.
 
 ### Three grading modes
 
@@ -169,7 +169,6 @@ lib/
   questionSets.ts              — named question collections (number ranges + WSC themes)
   wordDiff.ts                  — word-level diff-match-patch wrapper (Hard mode)
   feedbackClient.ts            — calls /api/feedback, falls back to the template
-  skipListener.ts              — "next question" voice-skip during result playback
   audioFormat.ts               — cross-browser MediaRecorder mime-type detection
   transcribeAudio.ts           — client for the /api/transcribe route
   tts.ts                       — speaks text: Azure /api/tts first, browser speechSynthesis fallback

@@ -119,15 +119,23 @@ async function fetchServerAudioUrl(text: string, rate: number): Promise<string |
   }
 }
 
+// Bumped by abortSpeech(); an in-flight speak() whose generation is stale bails
+// out instead of falling through to the Web Speech path.
+let speakGeneration = 0;
+// Resolver for the playUrl() promise currently in flight, so abortSpeech() can
+// settle it (pausing an <audio> element fires neither `ended` nor `error`).
+let currentPlaybackFinish: ((ok: boolean) => void) | null = null;
+
 function playUrl(url: string): Promise<boolean> {
   return new Promise((resolve) => {
     let settled = false;
     const finish = (ok: boolean) => {
-      if (!settled) {
-        settled = true;
-        resolve(ok);
-      }
+      if (settled) return;
+      settled = true;
+      currentPlaybackFinish = null;
+      resolve(ok);
     };
+    currentPlaybackFinish = finish;
     try {
       const audio = getSharedAudio();
       audio.onended = () => finish(true);
@@ -207,20 +215,49 @@ export function primeVoices(): void {
 }
 
 /**
+ * Immediately stops whatever `speak()` is currently playing (both the Azure
+ * <audio> element and the Web Speech utterance) and makes the in-flight
+ * `speak()` call resolve without falling back to another voice.
+ */
+export function abortSpeech(): void {
+  speakGeneration++;
+  try {
+    sharedAudio?.pause();
+  } catch {
+    /* ignore */
+  }
+  currentPlaybackFinish?.(false);
+  if (isSpeechSynthesisSupported()) {
+    try {
+      window.speechSynthesis.cancel();
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+/**
  * Speaks text aloud, resolving once speech finishes. Tries the Azure route
  * first, then the browser voice. Resolves immediately (without throwing) if
- * nothing can produce sound.
+ * nothing can produce sound, or if abortSpeech() is called mid-utterance.
  */
 export async function speak(text: string, opts: { rate?: number } = {}): Promise<void> {
   const rate = opts.rate ?? 0.95;
   const trimmed = text?.trim();
   if (!trimmed) return;
+  const gen = ++speakGeneration;
 
   if (typeof window !== 'undefined' && !serverTtsDisabled) {
     const url = await fetchServerAudioUrl(trimmed, rate);
-    if (url && (await playUrl(url))) return;
-    // no url, or playback was blocked/failed -> fall through
+    if (gen !== speakGeneration) return; // aborted while fetching
+    if (url) {
+      const ok = await playUrl(url);
+      if (gen !== speakGeneration) return; // aborted during playback
+      if (ok) return;
+      // playback failed -> fall through to the browser voice
+    }
   }
 
+  if (gen !== speakGeneration) return;
   return speakWithWebSpeech(trimmed, rate);
 }
