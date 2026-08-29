@@ -9,13 +9,13 @@ import {
   type ProgressState,
 } from '@/lib/progressStore';
 
-export type StudyMode = 'learning' | 'easy' | 'hard';
+export type StudyMode = 'easy' | 'medium' | 'hard';
 
 const SESSION_SIZE = 5;
 
 const MODES: Array<{ id: StudyMode; icon: string; label: string; description: string }> = [
-  { id: 'learning', icon: '🌱', label: 'Learning', description: 'Prompts help you' },
-  { id: 'easy', icon: '📖', label: 'Easy', description: 'Get the gist' },
+  { id: 'easy', icon: '📖', label: 'Easy', description: 'Key ideas' },
+  { id: 'medium', icon: '📚', label: 'Medium', description: 'Ideas, in order' },
   { id: 'hard', icon: '⚔️', label: 'Hard', description: 'Every word' },
 ];
 

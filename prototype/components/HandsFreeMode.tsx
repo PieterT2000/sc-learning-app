@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
-import { wordLevelDiff, type WordDiffResult } from '@/lib/wordDiff';
+import { scoreAnswer, type ScoreResult } from '@/lib/scoring';
+import { fetchFeedbackText } from '@/lib/feedbackClient';
 import { getSupportedMimeType, extensionForMimeType } from '@/lib/audioFormat';
 import { transcribeAudio } from '@/lib/transcribeAudio';
 import { speak, primeVoices } from '@/lib/tts';
@@ -13,8 +14,8 @@ import { DiffResult } from './DiffResult';
 import type { StudyMode } from './HomeScreen';
 
 const MODE_LABELS: Record<StudyMode, string> = {
-  learning: 'Learning Mode',
   easy: 'Easy Mode',
+  medium: 'Medium Mode',
   hard: 'Hard Mode',
 };
 
@@ -42,7 +43,7 @@ export function HandsFreeMode({
   const [index, setIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [transcript, setTranscript] = useState('');
-  const [diffResult, setDiffResult] = useState<WordDiffResult | null>(null);
+  const [result, setResult] = useState<ScoreResult | null>(null);
   const [micLevel, setMicLevel] = useState(0);
   const [liveCaption, setLiveCaption] = useState('');
   const [captionStatus, setCaptionStatus] = useState<LiveCaptionStatus | null>(null);
@@ -200,7 +201,7 @@ export function HandsFreeMode({
       setIndex(qIndex);
       setError(null);
       setTranscript('');
-      setDiffResult(null);
+      setResult(null);
       setPhase('asking');
 
       await speak(questions[qIndex].question);
@@ -230,15 +231,47 @@ export function HandsFreeMode({
       if (!activeRef.current) return;
 
       setTranscript(text);
-      const result = wordLevelDiff(q.answer, text);
-      setDiffResult(result);
+      const scored = scoreAnswer(mode, q.answer, text);
+      setResult(scored);
       setPhase('result');
-      recordAnswer(q.id, result.scorePercent);
 
-      await speak(`${result.scorePercent} percent.`);
+      // Progress is still a single 0-100 track (see progressStore.ts). Map the
+      // prose modes onto it: a pass is a mastery-worthy 100, a near-miss is
+      // held just below the mastery threshold so it never counts as mastered.
+      const pct =
+        scored.mode === 'hard'
+          ? scored.scorePercent
+          : scored.passed
+            ? 100
+            : Math.min(
+                89,
+                Math.round((scored.keyWordsMatched / Math.max(1, scored.keyWordsTotal)) * 100)
+              );
+      recordAnswer(q.id, pct);
+
+      // Hybrid feedback for easy/medium: show the deterministic template now,
+      // swap in the LLM-phrased version once it lands (never blocks the loop).
+      if (scored.mode !== 'hard') {
+        void fetchFeedbackText(scored, q.answer, text).then((fb) => {
+          if (activeRef.current) {
+            setResult((cur) => (cur && cur.mode !== 'hard' ? { ...cur, feedback: fb } : cur));
+          }
+        });
+      }
+
+      const spoken =
+        scored.mode === 'hard'
+          ? `${scored.scorePercent} percent.`
+          : scored.passed
+            ? scored.mode === 'easy'
+              ? 'That’s the key ideas.'
+              : 'Key ideas, in order. Nicely done.'
+            : 'You missed part of the idea — have a look at the notes on screen.';
+      await speak(spoken);
       if (!activeRef.current) return;
 
-      await new Promise((resolve) => setTimeout(resolve, CFG.resultPauseMs));
+      const pause = scored.mode === 'hard' ? CFG.resultPauseMs : CFG.proseResultPauseMs;
+      await new Promise((resolve) => setTimeout(resolve, pause));
       if (!activeRef.current) return;
 
       if (currentIndexRef.current < questions.length - 1) {
@@ -257,7 +290,7 @@ export function HandsFreeMode({
       startCapture();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [goToQuestion, endSession, startCapture, questions]);
+  }, [goToQuestion, endSession, startCapture, questions, mode]);
 
   const startSession = useCallback(async () => {
     setError(null);
@@ -352,7 +385,7 @@ export function HandsFreeMode({
             </div>
           )}
 
-          {phase === 'result' && diffResult && <DiffResult transcript={transcript} diffResult={diffResult} />}
+          {phase === 'result' && result && <DiffResult transcript={transcript} result={result} />}
 
           <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
             {(phase === 'listening' || phase === 'capturing' || phase === 'stalled') && (
