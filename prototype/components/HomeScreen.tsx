@@ -4,24 +4,15 @@ import { useEffect, useState, type CSSProperties } from 'react';
 import {
   loadProgress,
   loadSettings,
-  saveSettings,
   getMasteredCount,
   getTotalQuestions,
   getBadges,
   type ProgressState,
 } from '@/lib/progressStore';
 import { DEFAULT_FEEDBACK_LEVEL, type FeedbackLevel } from '@/lib/feedbackLevels';
-import {
-  QUESTION_SETS,
-  QUESTION_SET_GROUPS,
-  questionSetById,
-  questionSetSize,
-  ALL_SET_ID,
-} from '@/lib/questionSets';
+import { questionSetById, questionSetSize, ALL_SET_ID } from '@/lib/questionSets';
 
 export type StudyMode = 'easy' | 'medium' | 'hard';
-
-const SESSION_SIZE = 5;
 
 const MODES: Array<{ id: StudyMode; icon: string; label: string; description: string }> = [
   { id: 'easy', icon: '📖', label: 'Easy', description: 'Key ideas' },
@@ -32,9 +23,11 @@ const MODES: Array<{ id: StudyMode; icon: string; label: string; description: st
 export function HomeScreen({
   onBeginSession,
   onOpenSettings,
+  onOpenPicker,
 }: {
   onBeginSession: (mode: StudyMode, feedbackLevel: FeedbackLevel, questionSetId: string) => void;
   onOpenSettings: () => void;
+  onOpenPicker: () => void;
 }) {
   const [mode, setMode] = useState<StudyMode>('easy');
   const [feedbackLevel, setFeedbackLevel] = useState<FeedbackLevel>(DEFAULT_FEEDBACK_LEVEL);
@@ -51,11 +44,6 @@ export function HomeScreen({
     setQuestionSetId(s.questionSetId);
   }, []);
 
-  const chooseQuestionSet = (id: string) => {
-    setQuestionSetId(id);
-    saveSettings({ questionSetId: id });
-  };
-
   const mastered = progress ? getMasteredCount(progress) : 0;
   const total = getTotalQuestions();
   const progressPct = total > 0 ? Math.round((mastered / total) * 100) : 0;
@@ -64,8 +52,7 @@ export function HomeScreen({
 
   const chosenSet = questionSetById(questionSetId);
   const setSize = questionSetSize(questionSetId);
-  const sessionCount = Math.min(SESSION_SIZE, setSize);
-  const estimatedMinutes = Math.max(1, Math.round(sessionCount * 0.6));
+  const estimatedMinutes = Math.max(1, Math.round(setSize * 0.6));
 
   return (
     <div style={styles.wrap}>
@@ -99,26 +86,16 @@ export function HomeScreen({
       </div>
 
       <div style={styles.sectionLabel}>QUESTIONS</div>
-      <select
-        value={questionSetId}
-        onChange={(e) => chooseQuestionSet(e.target.value)}
-        style={styles.questionSelect}
-      >
-        {QUESTION_SET_GROUPS.map((group) => (
-          <optgroup key={group} label={group}>
-            {QUESTION_SETS.filter((s) => s.group === group).map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.label}
-              </option>
-            ))}
-          </optgroup>
-        ))}
-      </select>
-      <div style={styles.questionCaption}>
-        {setSize} question{setSize === 1 ? '' : 's'} in this set · a session draws up to{' '}
-        {SESSION_SIZE}
-      </div>
-      {chosenSet.blurb && <div style={styles.questionBlurb}>{chosenSet.blurb}</div>}
+      <button onClick={onOpenPicker} style={styles.questionRow}>
+        <div style={styles.questionRowTop}>
+          <span style={styles.questionRowLabel}>{chosenSet.label}</span>
+          <span style={styles.questionRowChange}>Change ›</span>
+        </div>
+        <span style={styles.questionRowMeta}>
+          {setSize} question{setSize === 1 ? '' : 's'} · the whole set each session
+        </span>
+        {chosenSet.blurb && <span style={styles.questionRowBlurb}>{chosenSet.blurb}</span>}
+      </button>
 
       <div style={styles.streakBar}>
         <div style={styles.streakNum}>{progress?.streak ?? 0}</div>
@@ -160,7 +137,7 @@ export function HomeScreen({
         Begin Session
       </button>
       <div style={styles.sessionCaption}>
-        {sessionCount} question{sessionCount === 1 ? '' : 's'} · ~{estimatedMinutes} minute
+        {setSize} question{setSize === 1 ? '' : 's'} · ~{estimatedMinutes} minute
         {estimatedMinutes === 1 ? '' : 's'}
       </div>
     </div>
@@ -197,21 +174,31 @@ const styles: Record<string, CSSProperties> = {
   modeBtnActive: { borderColor: '#3d5a80', background: '#f0f4f8' },
   modeBtnLabel: { fontWeight: 600, fontSize: 14, marginTop: 2 },
   modeBtnDesc: { fontSize: 11, color: '#888', marginTop: 4 },
-  questionSelect: {
+  questionRow: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 4,
     width: '100%',
-    padding: '11px 12px',
-    fontSize: 14,
+    padding: '12px 14px',
     borderWidth: 2,
     borderStyle: 'solid',
     borderColor: '#d0cec8',
     borderRadius: 12,
-    background: '#fff',
-    color: '#2a2a2a',
+    background: '#faf9f6',
     cursor: 'pointer',
-    margin: '8px 0 8px',
+    textAlign: 'left',
+    margin: '8px 0',
   },
-  questionCaption: { fontSize: 12, color: '#888' },
-  questionBlurb: { fontSize: 12, color: '#888', lineHeight: 1.5, marginTop: 6 },
+  questionRowTop: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    gap: 8,
+  },
+  questionRowLabel: { fontWeight: 600, fontSize: 14, color: '#2a2a2a' },
+  questionRowChange: { fontSize: 12, color: '#3d5a80', fontWeight: 600, flexShrink: 0 },
+  questionRowMeta: { fontSize: 12, color: '#888' },
+  questionRowBlurb: { fontSize: 12, color: '#888', lineHeight: 1.5, marginTop: 2 },
   streakBar: {
     display: 'flex',
     alignItems: 'center',

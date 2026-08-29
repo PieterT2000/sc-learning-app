@@ -5,13 +5,12 @@ import { HomeScreen, type StudyMode } from '@/components/HomeScreen';
 import { HandsFreeMode } from '@/components/HandsFreeMode';
 import { ManualMode } from '@/components/ManualMode';
 import { SettingsScreen } from '@/components/SettingsScreen';
+import { QuestionSetPicker } from '@/components/QuestionSetPicker';
 import { getSessionQuestions, type CatechismQuestion } from '@/lib/progressStore';
 import { idsForQuestionSet } from '@/lib/questionSets';
 import { DEFAULT_FEEDBACK_LEVEL, type FeedbackLevel } from '@/lib/feedbackLevels';
 
-type View = 'home' | 'hands-free' | 'manual' | 'settings';
-
-const SESSION_SIZE = 5;
+type View = 'home' | 'hands-free' | 'manual' | 'settings' | 'picker';
 
 export default function Home() {
   const [view, setView] = useState<View>('home');
@@ -26,19 +25,23 @@ export default function Home() {
   ) => {
     setMode(chosenMode);
     setFeedbackLevel(chosenFeedbackLevel);
-    setSessionQuestions(
-      getSessionQuestions(SESSION_SIZE, idsForQuestionSet(chosenQuestionSetId))
-    );
+    setSessionQuestions(getSessionQuestions(idsForQuestionSet(chosenQuestionSetId)));
     setView('hands-free');
   };
 
   return (
     <main style={styles.main}>
       {view === 'home' && (
-        <HomeScreen onBeginSession={beginSession} onOpenSettings={() => setView('settings')} />
+        <HomeScreen
+          onBeginSession={beginSession}
+          onOpenSettings={() => setView('settings')}
+          onOpenPicker={() => setView('picker')}
+        />
       )}
 
       {view === 'settings' && <SettingsScreen onBack={() => setView('home')} />}
+
+      {view === 'picker' && <QuestionSetPicker onBack={() => setView('home')} />}
 
       {view === 'hands-free' && (
         <HandsFreeMode
