@@ -38,15 +38,8 @@ just dim as before.
 
 Feedback verbosity (what the app says out loud after each attempt) lives on a
 separate **Settings** screen (`components/SettingsScreen.tsx`), reached from the
-⚙ link on the Home screen. Both the feedback level and the question set are
-stored under the same `catechism-voice-settings-v1` key.
-
-## Settings
-
-Feedback verbosity (what the app says out loud after each attempt) now lives on
-a separate **Settings** screen (`components/SettingsScreen.tsx`), reached from
-the ⚙ link on the Home screen, rather than cluttering the Home screen itself.
-Both the feedback level and the question set are stored under the same
+⚙ link on the Home screen, rather than cluttering the Home screen itself. Both
+the feedback level and the question set are stored under the same
 `catechism-voice-settings-v1` key.
 
 ## Setup
@@ -59,6 +52,29 @@ cp .env.example .env.local
 
 Get a Groq API key at https://console.groq.com/keys (free tier: 2,000
 requests/day, plenty for this test).
+
+### Optional: Azure AI Speech (British TTS voice)
+
+Without this the app speaks with the browser's built-in voice. To use a smooth
+en-GB neural voice instead:
+
+1. In the [Azure portal](https://portal.azure.com), create a **Speech** resource
+   (pick the **F0 / free** pricing tier — 500,000 characters/month, no expiry).
+2. Open the resource → **Keys and Endpoint**, copy **KEY 1** and the **Location**
+   (e.g. `uksouth`).
+3. Add them to `prototype/.env.local`:
+
+   ```
+   AZURE_SPEECH_KEY=<your key>
+   AZURE_SPEECH_REGION=<your location, e.g. uksouth>
+   AZURE_SPEECH_VOICE=          # optional; default en-GB-SoniaNeural, or en-GB-RyanNeural
+   ```
+
+4. Restart `npm run dev`.
+
+`/api/tts` renders the speech server-side and returns MP3; `lib/tts.ts` plays it
+and falls back to `speechSynthesis` on any error, so a wrong key or an exhausted
+quota just reverts to the browser voice — it never breaks a session.
 
 ## Running locally (desktop browser)
 
@@ -109,9 +125,10 @@ circle. Easy/Medium show the verdict large and centred instead of a circle
   mic + Groq + diff on a given device before trusting hands-free. Has an
   Easy / Medium / Hard toggle so you can eyeball all three graders on one
   question without starting a session.
-- **Hands-Free** — reads the question aloud (Web Speech API), listens, and
-  auto-detects when you've stopped talking to submit for scoring. Loops
-  through all five questions automatically.
+- **Hands-Free** — reads the question aloud (Azure `en-GB` neural voice via
+  `/api/tts`, browser `speechSynthesis` fallback), listens, and auto-detects
+  when you've stopped talking to submit for scoring. Loops through the whole
+  chosen question set automatically.
 
 ## Three grading modes
 
@@ -267,6 +284,7 @@ app/
   globals.css                  — @keyframes pulse (the one thing inline styles can't do)
   api/transcribe/route.ts      — proxies audio to Groq Whisper large-v3
   api/feedback/route.ts        — phrases the Easy/Medium result via a Groq LLM
+  api/tts/route.ts             — renders speech with Azure AI Speech (optional; en-GB neural voice)
 components/
   HomeScreen.tsx                — mode + question-set choice, streak, badges, progress
   QuestionSetPicker.tsx         — full-screen menu for choosing the question set
@@ -285,7 +303,7 @@ lib/
   skipListener.ts               — "next question" voice-skip during result playback
   audioFormat.ts                — cross-browser MediaRecorder mime-type detection
   transcribeAudio.ts            — client for the /api/transcribe route
-  tts.ts                        — Web Speech API wrapper (speak the question aloud)
+  tts.ts                        — speaks text aloud: Azure /api/tts first, browser speechSynthesis fallback
   voiceActivity.ts              — Web Audio amplitude monitor (silence detection)
   liveCaption.ts                 — on-device live captions (SpeechRecognition), display-only
   handsFreeConfig.ts            — tunable silence-detection thresholds
