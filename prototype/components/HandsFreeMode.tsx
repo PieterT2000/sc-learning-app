@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from 're
 import { scoreAnswer, briefVerdict, type ScoreResult } from '@/lib/scoring';
 import { fetchFeedbackText } from '@/lib/feedbackClient';
 import {
+  FEEDBACK_LEVELS,
   feedbackLevelIsFull,
   feedbackLevelReadsAnswer,
   type FeedbackLevel,
@@ -23,6 +24,12 @@ const MODE_LABELS: Record<StudyMode, string> = {
   easy: 'Easy Mode',
   medium: 'Medium Mode',
   hard: 'Hard Mode',
+};
+
+const MODE_META: Record<StudyMode, { icon: string; blurb: string }> = {
+  easy: { icon: '📖', blurb: 'key ideas, any order' },
+  medium: { icon: '📚', blurb: 'key ideas, in order' },
+  hard: { icon: '⚔️', blurb: 'every word, exactly' },
 };
 
 type Phase =
@@ -79,6 +86,8 @@ export function HandsFreeMode({
 
   const question = questions[index];
   const isListening = phase === 'listening' || phase === 'capturing' || phase === 'stalled';
+  const selectedFeedback =
+    FEEDBACK_LEVELS.find((f) => f.id === feedbackLevel) ?? FEEDBACK_LEVELS[1];
 
   const teardownAudio = useCallback(() => {
     vadRef.current?.stop();
@@ -408,7 +417,51 @@ export function HandsFreeMode({
 
       {phase === 'off' && (
         <div>
-          <p style={styles.questionNum}>{MODE_LABELS[mode]}</p>
+          <div style={styles.statusBar}>
+            <span>This session</span>
+            <span>
+              {questions.length} question{questions.length === 1 ? '' : 's'} · ~
+              {Math.max(1, Math.round(questions.length * 0.6))} min
+            </span>
+          </div>
+
+          <div style={styles.overviewCard}>
+            <div style={styles.overviewRow}>
+              <span style={styles.overviewKey}>DIFFICULTY</span>
+              <span style={styles.overviewVal}>
+                {MODE_META[mode].icon} {MODE_LABELS[mode]} — {MODE_META[mode].blurb}
+              </span>
+            </div>
+            <div style={{ ...styles.overviewRow, marginBottom: 0 }}>
+              <span style={styles.overviewKey}>FEEDBACK</span>
+              <span style={styles.overviewVal}>
+                {selectedFeedback.label} — {selectedFeedback.blurb.toLowerCase()}
+                {'. Say "next question" to skip it.'}
+              </span>
+            </div>
+          </div>
+
+          <div style={styles.questionNum}>QUESTIONS</div>
+          <ol style={styles.qList}>
+            {questions.map((q, i) => (
+              <li
+                key={q.id}
+                style={{
+                  ...styles.qItem,
+                  borderBottom: i === questions.length - 1 ? 'none' : '1px solid #ececec',
+                }}
+              >
+                <span style={styles.qId}>Q{q.id}</span>
+                <span>{q.question}</span>
+              </li>
+            ))}
+          </ol>
+
+          <p style={styles.overviewHint}>
+            Hands-free from here: each question is read aloud, you answer, and it moves on by
+            itself once you stop talking.
+          </p>
+
           <button onClick={startSession} style={styles.primaryButton}>
             Start Listening
           </button>
@@ -508,6 +561,35 @@ const styles: Record<string, CSSProperties> = {
     padding: '12px 0 16px',
   },
   questionNum: { fontSize: 13, color: '#888', letterSpacing: 1, marginBottom: 8 },
+  overviewCard: { background: '#faf9f6', borderRadius: 12, padding: 16, margin: '4px 0 20px' },
+  overviewRow: { display: 'flex', gap: 12, marginBottom: 10 },
+  overviewKey: {
+    flex: '0 0 76px',
+    fontSize: 11,
+    fontWeight: 600,
+    letterSpacing: 1,
+    color: '#3d5a80',
+    paddingTop: 2,
+  },
+  overviewVal: { flex: 1, fontSize: 14, lineHeight: 1.5, color: '#2a2a2a' },
+  qList: { listStyle: 'none', padding: 0, margin: '4px 0 0' },
+  qItem: {
+    display: 'flex',
+    gap: 10,
+    padding: '10px 0',
+    fontSize: 15,
+    lineHeight: 1.45,
+    color: '#2a2a2a',
+  },
+  qId: {
+    flex: '0 0 32px',
+    fontSize: 12,
+    fontWeight: 700,
+    letterSpacing: 0.5,
+    color: '#3d5a80',
+    paddingTop: 3,
+  },
+  overviewHint: { fontSize: 12, color: '#888', lineHeight: 1.5, margin: '18px 0 20px' },
   question: { fontSize: 20, fontWeight: 600, lineHeight: 1.5, marginBottom: 24, color: '#2a2a2a' },
   status: { fontSize: 15, color: '#555', marginBottom: 12 },
   listeningIndicator: { textAlign: 'center', margin: '40px 0' },

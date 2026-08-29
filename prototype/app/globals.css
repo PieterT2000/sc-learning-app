@@ -1,3 +1,11 @@
+/* Form controls don't inherit font-family from <body> on their own. */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
 /* Keyframes the inline-style components can't express. */
 @keyframes pulse {
   0% {
