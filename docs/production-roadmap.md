@@ -2,8 +2,8 @@
 
 Status: DRAFT — 2026-08-29
 Companion to [`design.md`](design.md). Where the design doc describes the target,
-this describes how to get there from what actually exists in [`prototype/`](../prototype/)
-today.
+this describes how to get there from what exists in the repo today (the former
+`prototype/`, promoted to the repo root in Phase 1a).
 
 ## Where we actually are
 
@@ -73,12 +73,12 @@ What the design doc calls for that **does not exist yet**:
 Goal: the current app, restructured to the repo root and styled with Tailwind,
 live on a URL, installable, honest about failure.
 
-**1a — Promote (one PR, mechanical)**
-- [ ] `git mv prototype/* .` and the dotfiles; delete the empty `prototype/`
-- [ ] Merge `prototype/.gitignore` → root `.gitignore`; keep `certificates/` and `.env*.local` untracked
-- [ ] Rename the package (`catechism-voice-prototype` → `catechism-voice`); update `prototype/README.md` into the root `README.md`
-- [ ] Fix intra-repo paths (`../docs/wireframe.html` → `docs/wireframe.html`, etc.)
-- [ ] Verify: `npm run build`, `npm run test:scoring`, `tsc --noEmit` from the new root
+**1a — Promote (one PR, mechanical) — DONE**
+- [x] `git mv prototype/* .` and the dotfiles
+- [x] `prototype/.gitignore` → root `.gitignore` (+ `.claude/`, `.vercel/`)
+- [x] Rename the package (`catechism-voice-prototype` → `catechism-voice`)
+- [x] Merge `prototype/README.md` into the root `README.md`
+- [x] Verify: `npm run build`, `npm run test:scoring`, `tsc --noEmit` from the new root
 
 **1b — Tailwind (one PR, then screen-by-screen)**
 - [ ] Add `tailwindcss`, `postcss`, `autoprefixer`; `tailwind.config.ts`, `postcss.config.js`
