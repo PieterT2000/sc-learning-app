@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type CSSProperties } from 'react';
+import { useState } from 'react';
 import { HomeScreen, type StudyMode } from '@/components/HomeScreen';
 import { HandsFreeMode } from '@/components/HandsFreeMode';
 import { ManualMode } from '@/components/ManualMode';
@@ -11,6 +11,9 @@ import { idsForQuestionSet } from '@/lib/questionSets';
 import { DEFAULT_FEEDBACK_LEVEL, type FeedbackLevel } from '@/lib/feedbackLevels';
 
 type View = 'home' | 'hands-free' | 'manual' | 'settings' | 'picker';
+
+const devLinkClass =
+  'mt-6 block w-full cursor-pointer border-0 bg-transparent py-3 text-center text-xs text-[#aaa]';
 
 export default function Home() {
   const [view, setView] = useState<View>('home');
@@ -30,7 +33,7 @@ export default function Home() {
   };
 
   return (
-    <main style={styles.main}>
+    <main className="mx-auto min-h-screen max-w-[420px] bg-page px-6 py-10">
       {view === 'home' && (
         <HomeScreen
           onBeginSession={beginSession}
@@ -57,38 +60,15 @@ export default function Home() {
       {/* Small dev-only link to the manual tap-to-record flow, useful for
           isolating mic/Groq/diff issues from the hands-free VAD logic. */}
       {view === 'home' && (
-        <button onClick={() => setView('manual')} style={styles.devLink}>
+        <button onClick={() => setView('manual')} className={devLinkClass}>
           Manual mode (dev/testing)
         </button>
       )}
       {view === 'manual' && (
-        <button onClick={() => setView('home')} style={styles.devLink}>
+        <button onClick={() => setView('home')} className={devLinkClass}>
           ← Back to Home
         </button>
       )}
     </main>
   );
 }
-
-const styles: Record<string, CSSProperties> = {
-  main: {
-    maxWidth: 420,
-    margin: '0 auto',
-    padding: '2.5rem 1.5rem',
-    // Font comes from Noto Serif on <body> (app/layout.tsx) via next/font.
-    background: '#f8f7f4',
-    minHeight: '100vh',
-  },
-  devLink: {
-    display: 'block',
-    width: '100%',
-    textAlign: 'center',
-    padding: '12px 0',
-    marginTop: 24,
-    fontSize: 12,
-    color: '#aaa',
-    border: 'none',
-    background: 'transparent',
-    cursor: 'pointer',
-  },
-};
