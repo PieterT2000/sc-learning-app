@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import seedQuestions from '@/lib/seed.json';
 import { scoreAnswer, type ScoreResult, type Mode } from '@/lib/scoring';
 import { fetchFeedbackText } from '@/lib/feedbackClient';
@@ -16,6 +16,11 @@ const MODES: Array<{ id: Mode; label: string }> = [
   { id: 'medium', label: 'Medium' },
   { id: 'hard', label: 'Hard' },
 ];
+
+const primaryButton =
+  'w-full cursor-pointer rounded-[10px] border-0 bg-[#1a1a2e] px-6 py-4 text-base font-semibold text-white';
+const secondaryButton =
+  'flex-1 cursor-pointer rounded-[10px] border border-[#ccc] bg-transparent px-6 py-4 text-base font-semibold text-[#1a1a2e]';
 
 export function ManualMode() {
   const [index, setIndex] = useState(0);
@@ -118,61 +123,68 @@ export function ManualMode() {
 
   return (
     <div>
-      <p style={styles.eyebrow}>
+      <p className="mb-1.5 text-[13px] tracking-[0.4px] text-muted">
         Question {index + 1} of {seedQuestions.length}
       </p>
 
-      <div style={styles.modeRow}>
+      <div className="mb-[18px] mt-2.5 flex gap-1.5">
         {MODES.map((m) => (
           <button
             key={m.id}
             onClick={() => setMode(m.id)}
             disabled={phase === 'recording' || phase === 'transcribing'}
-            style={{ ...styles.modeBtn, ...(m.id === mode ? styles.modeBtnActive : {}) }}
+            className={`flex-1 cursor-pointer rounded-lg border bg-transparent py-2 text-[13px] font-semibold ${
+              m.id === mode
+                ? 'border-accent bg-accent-soft text-accent'
+                : 'border-[#ccc] text-[#555]'
+            }`}
           >
             {m.label}
           </button>
         ))}
       </div>
 
-      <h1 style={styles.question}>{question.question}</h1>
+      <h1 className="mb-7 text-[21px] leading-[1.4]">{question.question}</h1>
 
-      {error && <p style={styles.error}>{error}</p>}
+      {error && <p className="mb-4 text-sm text-diff-bad">{error}</p>}
 
       {phase === 'idle' && (
-        <button onClick={startRecording} style={styles.primaryButton}>
+        <button onClick={startRecording} className={primaryButton}>
           Start Recording
         </button>
       )}
 
       {phase === 'recording' && (
         <div>
-          <button onClick={stopRecording} style={{ ...styles.primaryButton, background: '#c0392b' }}>
+          <button
+            onClick={stopRecording}
+            className="w-full cursor-pointer rounded-[10px] border-0 bg-diff-bad px-6 py-4 text-base font-semibold text-white"
+          >
             Stop Recording
           </button>
-          <div style={styles.liveCaption}>
+          <div className="mt-4 min-h-[24px] rounded-xl bg-card p-4 text-[15px] italic leading-relaxed text-[#555]">
             {captionStatus === 'unsupported'
-              ? 'Live captions aren\u2019t supported in this browser (try Chrome).'
+              ? 'Live captions aren’t supported in this browser (try Chrome).'
               : captionStatus === 'error'
-                ? 'Live captions hit an error \u2014 check the browser console for details.'
+                ? 'Live captions hit an error — check the browser console for details.'
                 : liveCaption
-                  ? `"${liveCaption}\u2026"`
-                  : 'Listening for captions\u2026'}
+                  ? `"${liveCaption}…"`
+                  : 'Listening for captions…'}
           </div>
         </div>
       )}
 
-      {phase === 'transcribing' && <p style={styles.status}>Transcribing…</p>}
+      {phase === 'transcribing' && <p className="text-[15px] text-[#555]">Transcribing…</p>}
 
       {phase === 'result' && result && (
         <div>
           <DiffResult transcript={transcript} result={result} />
-          <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
-            <button onClick={retry} style={styles.secondaryButton}>
+          <div className="mt-6 flex gap-3">
+            <button onClick={retry} className={secondaryButton}>
               Retry
             </button>
             {index < seedQuestions.length - 1 && (
-              <button onClick={nextQuestion} style={styles.primaryButton}>
+              <button onClick={nextQuestion} className={primaryButton}>
                 Next Question
               </button>
             )}
@@ -182,56 +194,3 @@ export function ManualMode() {
     </div>
   );
 }
-
-const styles: Record<string, CSSProperties> = {
-  eyebrow: { fontSize: 13, color: '#888', marginBottom: 6, letterSpacing: 0.4 },
-  modeRow: { display: 'flex', gap: 6, margin: '10px 0 18px' },
-  modeBtn: {
-    flex: 1,
-    padding: '8px 0',
-    fontSize: 13,
-    fontWeight: 600,
-    borderRadius: 8,
-    border: '1px solid #ccc',
-    background: 'transparent',
-    color: '#555',
-    cursor: 'pointer',
-  },
-  modeBtnActive: { borderColor: '#3d5a80', background: '#f0f4f8', color: '#3d5a80' },
-  question: { fontSize: 21, lineHeight: 1.4, marginBottom: 28 },
-  error: { color: '#c0392b', fontSize: 14, marginBottom: 16 },
-  status: { fontSize: 15, color: '#555' },
-  liveCaption: {
-    marginTop: 16,
-    padding: 16,
-    background: '#faf9f6',
-    borderRadius: 12,
-    fontSize: 15,
-    lineHeight: 1.6,
-    color: '#555',
-    minHeight: 24,
-    fontStyle: 'italic',
-  },
-  primaryButton: {
-    width: '100%',
-    padding: '16px 24px',
-    fontSize: 16,
-    fontWeight: 600,
-    borderRadius: 10,
-    border: 'none',
-    background: '#1a1a2e',
-    color: 'white',
-    cursor: 'pointer',
-  },
-  secondaryButton: {
-    flex: 1,
-    padding: '16px 24px',
-    fontSize: 16,
-    fontWeight: 600,
-    borderRadius: 10,
-    border: '1px solid #ccc',
-    background: 'transparent',
-    color: '#1a1a2e',
-    cursor: 'pointer',
-  },
-};
