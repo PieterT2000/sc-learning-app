@@ -1,13 +1,19 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
-import { scoreAnswer, type ScoreResult } from '@/lib/scoring';
+import { scoreAnswer, briefVerdict, type ScoreResult } from '@/lib/scoring';
 import { fetchFeedbackText } from '@/lib/feedbackClient';
+import {
+  feedbackLevelIsFull,
+  feedbackLevelReadsAnswer,
+  type FeedbackLevel,
+} from '@/lib/feedbackLevels';
 import { getSupportedMimeType, extensionForMimeType } from '@/lib/audioFormat';
 import { transcribeAudio } from '@/lib/transcribeAudio';
 import { speak, primeVoices } from '@/lib/tts';
 import { startVoiceActivityMonitor, type VoiceActivityHandle } from '@/lib/voiceActivity';
 import { startLiveCaption, type LiveCaptionHandle, type LiveCaptionStatus } from '@/lib/liveCaption';
+import { startSkipListener, type SkipListenerHandle } from '@/lib/skipListener';
 import { HANDS_FREE_CONFIG as CFG } from '@/lib/handsFreeConfig';
 import { recordAnswer, recordSessionComplete, type CatechismQuestion } from '@/lib/progressStore';
 import { DiffResult } from './DiffResult';
@@ -32,10 +38,12 @@ type Phase =
 
 export function HandsFreeMode({
   mode,
+  feedbackLevel,
   questions,
   onExit,
 }: {
   mode: StudyMode;
+  feedbackLevel: FeedbackLevel;
   questions: CatechismQuestion[];
   onExit: (completed: boolean) => void;
 }) {
@@ -59,6 +67,7 @@ export function HandsFreeMode({
   const mimeTypeRef = useRef('');
   const vadRef = useRef<VoiceActivityHandle | null>(null);
   const captionRef = useRef<LiveCaptionHandle | null>(null);
+  const skipRef = useRef<SkipListenerHandle | null>(null);
 
   const activeRef = useRef(false); // false once the session has been torn down
   const currentIndexRef = useRef(0);
@@ -66,6 +75,7 @@ export function HandsFreeMode({
   const listenStartRef = useRef(0);
   const silenceStartRef = useRef<number | null>(null);
   const captureFinishedRef = useRef(false); // guards against double-firing finishCapture
+  const skipRequestedRef = useRef(false); // set while reading a result aloud, when the user says "next question"
 
   const question = questions[index];
 
@@ -74,11 +84,35 @@ export function HandsFreeMode({
     vadRef.current = null;
     captionRef.current?.stop();
     captionRef.current = null;
+    skipRef.current?.stop();
+    skipRef.current = null;
     if (recorderRef.current && recorderRef.current.state !== 'inactive') {
       recorderRef.current.onstop = null;
       recorderRef.current.stop();
     }
     recorderRef.current = null;
+  }, []);
+
+  // Cuts short whatever result is being read aloud and lets the loop advance.
+  const requestSkip = useCallback(() => {
+    if (skipRequestedRef.current) return;
+    skipRequestedRef.current = true;
+    if (typeof window !== 'undefined') window.speechSynthesis?.cancel();
+  }, []);
+
+  // A pause that also ends early if the user asks to skip (or the session ends).
+  const sleepUnlessSkipped = useCallback((ms: number) => {
+    return new Promise<void>((resolve) => {
+      const start = performance.now();
+      const tick = () => {
+        if (!activeRef.current || skipRequestedRef.current || performance.now() - start >= ms) {
+          resolve();
+          return;
+        }
+        setTimeout(tick, 100);
+      };
+      tick();
+    });
   }, []);
 
   const endSession = useCallback(
@@ -104,6 +138,7 @@ export function HandsFreeMode({
       if (typeof window !== 'undefined') window.speechSynthesis?.cancel();
       vadRef.current?.stop();
       captionRef.current?.stop();
+      skipRef.current?.stop();
       streamRef.current?.getTracks().forEach((t) => t.stop());
     };
   }, []);
@@ -202,6 +237,9 @@ export function HandsFreeMode({
       setError(null);
       setTranscript('');
       setResult(null);
+      skipRequestedRef.current = false;
+      skipRef.current?.stop();
+      skipRef.current = null;
       setPhase('asking');
 
       await speak(questions[qIndex].question);
@@ -249,28 +287,50 @@ export function HandsFreeMode({
               );
       recordAnswer(q.id, pct);
 
-      // Hands-free is meant to work with the phone in your pocket: read the
-      // whole result aloud, not just a verdict.
-      let spoken: string;
+      // Read the result aloud (hands-free is meant to work with the screen
+      // off), following the chosen feedback level. Any of it can be cut short
+      // by the user saying "next question" (or tapping Next).
+      skipRequestedRef.current = false;
+      skipRef.current = startSkipListener(requestSkip);
+
+      const full = feedbackLevelIsFull(feedbackLevel);
+      const utterances: Array<{ text: string; rate?: number }> = [];
+
       if (scored.mode === 'hard') {
-        spoken = scored.exact
-          ? 'Word perfect. One hundred percent.'
-          : `${scored.scorePercent} percent. ${scored.breakdown}`;
-      } else {
-        // Wait for the LLM-phrased feedback (falls back to the deterministic
-        // template on failure or timeout), show it, then speak it.
+        if (scored.exact) {
+          utterances.push({ text: 'Word perfect. One hundred percent.' });
+        } else if (full) {
+          utterances.push({ text: `${scored.scorePercent} percent. ${scored.breakdown}` });
+        } else {
+          utterances.push({ text: briefVerdict(scored) });
+        }
+      } else if (full) {
+        // Comprehensive: wait for the LLM-phrased feedback (falls back to the
+        // deterministic template on failure or timeout), show it, then speak it.
         const feedback = await fetchFeedbackText(scored, q.answer, text);
         if (!activeRef.current) return;
         setResult((cur) => (cur && cur.mode !== 'hard' ? { ...cur, feedback } : cur));
-        spoken = feedback;
+        utterances.push({ text: feedback });
+      } else {
+        utterances.push({ text: briefVerdict(scored) });
       }
 
-      await speak(spoken);
-      if (!activeRef.current) return;
+      if (feedbackLevelReadsAnswer(feedbackLevel)) {
+        utterances.push({ text: `The answer is. ${q.answer}`, rate: 0.9 });
+      }
 
-      // Short breath after the spoken result before the next question. The
-      // feedback itself has already been read in full by speak() above.
-      await new Promise((resolve) => setTimeout(resolve, CFG.resultPauseMs));
+      for (const u of utterances) {
+        if (!activeRef.current || skipRequestedRef.current) break;
+        await speak(u.text, u.rate ? { rate: u.rate } : undefined);
+      }
+      if (activeRef.current && !skipRequestedRef.current) {
+        await sleepUnlessSkipped(CFG.resultPauseMs);
+      }
+
+      skipRef.current?.stop();
+      skipRef.current = null;
+      const wasSkipped = skipRequestedRef.current;
+      skipRequestedRef.current = false;
       if (!activeRef.current) return;
 
       if (currentIndexRef.current < questions.length - 1) {
@@ -278,7 +338,7 @@ export function HandsFreeMode({
       } else {
         setPhase('complete');
         recordSessionComplete();
-        await speak("That's this session's questions done. Nicely done.");
+        if (!wasSkipped) await speak("That's this session's questions done. Nicely done.");
         endSession(undefined, true);
       }
     } catch (err) {
@@ -289,7 +349,7 @@ export function HandsFreeMode({
       startCapture();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [goToQuestion, endSession, startCapture, questions, mode]);
+  }, [goToQuestion, endSession, startCapture, questions, mode, feedbackLevel, requestSkip, sleepUnlessSkipped]);
 
   const startSession = useCallback(async () => {
     setError(null);
@@ -390,6 +450,11 @@ export function HandsFreeMode({
             {(phase === 'listening' || phase === 'capturing' || phase === 'stalled') && (
               <button onClick={iAmDone} style={styles.secondaryButton}>
                 I&rsquo;m done — check it
+              </button>
+            )}
+            {phase === 'result' && (
+              <button onClick={requestSkip} style={styles.secondaryButton}>
+                Next question
               </button>
             )}
             {phase !== 'complete' && (

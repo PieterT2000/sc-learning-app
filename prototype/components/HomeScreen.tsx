@@ -3,11 +3,14 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import {
   loadProgress,
+  loadSettings,
+  saveSettings,
   getMasteredCount,
   getTotalQuestions,
   getBadges,
   type ProgressState,
 } from '@/lib/progressStore';
+import { FEEDBACK_LEVELS, DEFAULT_FEEDBACK_LEVEL, type FeedbackLevel } from '@/lib/feedbackLevels';
 
 export type StudyMode = 'easy' | 'medium' | 'hard';
 
@@ -19,8 +22,13 @@ const MODES: Array<{ id: StudyMode; icon: string; label: string; description: st
   { id: 'hard', icon: '⚔️', label: 'Hard', description: 'Every word' },
 ];
 
-export function HomeScreen({ onBeginSession }: { onBeginSession: (mode: StudyMode) => void }) {
+export function HomeScreen({
+  onBeginSession,
+}: {
+  onBeginSession: (mode: StudyMode, feedbackLevel: FeedbackLevel) => void;
+}) {
   const [mode, setMode] = useState<StudyMode>('easy');
+  const [feedbackLevel, setFeedbackLevel] = useState<FeedbackLevel>(DEFAULT_FEEDBACK_LEVEL);
   const [progress, setProgress] = useState<ProgressState | null>(null);
 
   // Read from localStorage only on the client, after mount, to avoid an
@@ -28,7 +36,13 @@ export function HomeScreen({ onBeginSession }: { onBeginSession: (mode: StudyMod
   // doesn't exist during that pass).
   useEffect(() => {
     setProgress(loadProgress());
+    setFeedbackLevel(loadSettings().feedbackLevel);
   }, []);
+
+  const chooseFeedbackLevel = (level: FeedbackLevel) => {
+    setFeedbackLevel(level);
+    saveSettings({ feedbackLevel: level });
+  };
 
   const mastered = progress ? getMasteredCount(progress) : 0;
   const total = getTotalQuestions();
@@ -64,6 +78,26 @@ export function HomeScreen({ onBeginSession }: { onBeginSession: (mode: StudyMod
         })}
       </div>
 
+      <div style={styles.sectionLabel}>FEEDBACK</div>
+      <div style={styles.feedbackSelector}>
+        {FEEDBACK_LEVELS.map((f) => {
+          const active = f.id === feedbackLevel;
+          return (
+            <button
+              key={f.id}
+              onClick={() => chooseFeedbackLevel(f.id)}
+              style={{ ...styles.feedbackBtn, ...(active ? styles.feedbackBtnActive : {}) }}
+            >
+              <span style={styles.feedbackBtnLabel}>{f.label}</span>
+              <span style={styles.feedbackBtnBlurb}>{f.blurb}</span>
+            </button>
+          );
+        })}
+      </div>
+      <div style={styles.feedbackHint}>
+        In hands-free mode, say “next question” to skip the rest.
+      </div>
+
       <div style={styles.streakBar}>
         <div style={styles.streakNum}>{progress?.streak ?? 0}</div>
         <div>
@@ -97,7 +131,7 @@ export function HomeScreen({ onBeginSession }: { onBeginSession: (mode: StudyMod
         </div>
       </div>
 
-      <button onClick={() => onBeginSession(mode)} style={styles.startBtn}>
+      <button onClick={() => onBeginSession(mode, feedbackLevel)} style={styles.startBtn}>
         Begin Session
       </button>
       <div style={styles.sessionCaption}>
@@ -127,6 +161,23 @@ const styles: Record<string, CSSProperties> = {
   modeBtnActive: { borderColor: '#3d5a80', background: '#f0f4f8' },
   modeBtnLabel: { fontWeight: 600, fontSize: 14, marginTop: 2 },
   modeBtnDesc: { fontSize: 11, color: '#888', marginTop: 4 },
+  feedbackSelector: { display: 'flex', flexDirection: 'column', gap: 6, margin: '8px 0 6px' },
+  feedbackBtn: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    gap: 10,
+    padding: '10px 12px',
+    border: '2px solid #d0cec8',
+    borderRadius: 10,
+    background: '#fff',
+    cursor: 'pointer',
+    textAlign: 'left',
+  },
+  feedbackBtnActive: { borderColor: '#3d5a80', background: '#f0f4f8' },
+  feedbackBtnLabel: { fontWeight: 600, fontSize: 13 },
+  feedbackBtnBlurb: { fontSize: 11, color: '#888' },
+  feedbackHint: { fontSize: 11, color: '#aaa', margin: '0 0 16px' },
   streakBar: {
     display: 'flex',
     alignItems: 'center',

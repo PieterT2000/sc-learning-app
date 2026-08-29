@@ -5,6 +5,7 @@ import { HomeScreen, type StudyMode } from '@/components/HomeScreen';
 import { HandsFreeMode } from '@/components/HandsFreeMode';
 import { ManualMode } from '@/components/ManualMode';
 import { getSessionQuestions, type CatechismQuestion } from '@/lib/progressStore';
+import { DEFAULT_FEEDBACK_LEVEL, type FeedbackLevel } from '@/lib/feedbackLevels';
 
 type View = 'home' | 'hands-free' | 'manual';
 
@@ -13,10 +14,12 @@ const SESSION_SIZE = 5;
 export default function Home() {
   const [view, setView] = useState<View>('home');
   const [mode, setMode] = useState<StudyMode>('easy');
+  const [feedbackLevel, setFeedbackLevel] = useState<FeedbackLevel>(DEFAULT_FEEDBACK_LEVEL);
   const [sessionQuestions, setSessionQuestions] = useState<CatechismQuestion[]>([]);
 
-  const beginSession = (chosenMode: StudyMode) => {
+  const beginSession = (chosenMode: StudyMode, chosenFeedbackLevel: FeedbackLevel) => {
     setMode(chosenMode);
+    setFeedbackLevel(chosenFeedbackLevel);
     setSessionQuestions(getSessionQuestions(SESSION_SIZE));
     setView('hands-free');
   };
@@ -26,7 +29,12 @@ export default function Home() {
       {view === 'home' && <HomeScreen onBeginSession={beginSession} />}
 
       {view === 'hands-free' && (
-        <HandsFreeMode mode={mode} questions={sessionQuestions} onExit={() => setView('home')} />
+        <HandsFreeMode
+          mode={mode}
+          feedbackLevel={feedbackLevel}
+          questions={sessionQuestions}
+          onExit={() => setView('home')}
+        />
       )}
 
       {view === 'manual' && <ManualMode />}

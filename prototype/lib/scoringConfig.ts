@@ -76,6 +76,14 @@ export const NORMALISE_RULES: ReadonlyArray<{ pattern: RegExp; replace: string }
 ];
 
 /**
+ * When more than this many key words are missing, feedback stops naming them
+ * one at a time - a long quoted list ("you didn't say X, Y, Z, ...") is noise
+ * once a whole chunk of the answer is gone. Above the cap it summarises how
+ * much was missing instead. Applies to every mode.
+ */
+export const MAX_LISTED_MISSING = 4;
+
+/**
  * Groq LLM used to phrase easy/medium feedback (see app/api/feedback/route.ts).
  * The deterministic engine has already decided pass/fail and exactly what's
  * missing/extra/reordered - the model only turns that into a sentence, so a

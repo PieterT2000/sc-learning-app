@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { FEEDBACK_MODEL } from '@/lib/scoringConfig';
+import { FEEDBACK_MODEL, MAX_LISTED_MISSING } from '@/lib/scoringConfig';
 
 // Node runtime to match /api/transcribe - same reasoning (reliable fetch +
 // FormData, and the design doc's Edge migration can happen later for both).
@@ -14,9 +14,11 @@ const SYSTEM_PROMPT =
   'explain doctrine. In 1-2 plain sentences, tell them how what they said lines ' +
   'up with the answer and what to fix. If they recited it word for word, lead ' +
   'by telling them it was word perfect. If they got every key idea in the right ' +
-  'order, give them credit for the order too. Address them as "you". Write plain ' +
-  'prose only - no markdown, bold, bullet points, or headings. This will be read ' +
-  'aloud, so no lists or symbols.';
+  'order, give them credit for the order too. Never quote more than about four ' +
+  'missing words; if a large part of the answer is gone, say roughly how much ' +
+  'was missing and tell them to relearn the whole answer, do not list the words. ' +
+  'Address them as "you". Write plain prose only - no markdown, bold, bullet ' +
+  'points, or headings. This will be read aloud, so no lists or symbols.';
 
 /**
  * Phrases the deterministic easy/medium result as natural feedback.
@@ -39,6 +41,8 @@ export async function POST(req: NextRequest) {
       missingKeyWords = [],
       extraKeyWords = [],
       outOfOrder,
+      keyWordsMatched,
+      keyWordsTotal,
     } = body ?? {};
 
     if ((mode !== 'easy' && mode !== 'medium') || !reference || typeof transcript !== 'string') {
@@ -56,11 +60,13 @@ export async function POST(req: NextRequest) {
       `What the learner said: "${transcript || '(nothing was captured)'}"`,
       `Verdict already decided: ${passed ? 'PASS' : 'NOT YET'}.`,
       wordPerfect ? 'They recited it word for word, exactly as written.' : null,
-      !wordPerfect && missingKeyWords.length
-        ? `Key words they did not say: ${missingKeyWords.join(', ')}.`
-        : !wordPerfect
-          ? 'They said every key word.'
-          : null,
+      !wordPerfect && missingKeyWords.length > MAX_LISTED_MISSING
+        ? `A large part of the answer was missing: they had ${keyWordsMatched} of ${keyWordsTotal} key words. Do NOT list the missing words; tell them how much was missing and to relearn the whole answer.`
+        : !wordPerfect && missingKeyWords.length
+          ? `Key words they did not say: ${missingKeyWords.join(', ')}.`
+          : !wordPerfect
+            ? 'They said every key word.'
+            : null,
       !wordPerfect && extraKeyWords.length
         ? `Words they added that are not in the answer: ${extraKeyWords.join(', ')}.`
         : null,

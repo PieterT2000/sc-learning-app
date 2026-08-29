@@ -65,9 +65,10 @@ It implements:
   (iOS `audio/mp4` vs Chrome/Android `audio/webm;codecs=opus`).
 - **Manual mode** — tap to record; for isolating mic/Groq/diff issues per device.
 - **Hands-Free mode** — speaks the question, listens, auto-detects when you stop
-  talking, then reads the whole result aloud (the generated feedback, or the
-  score + breakdown) and loops a 5-question session with no taps and no need to
-  look at the screen.
+  talking, then reads the result aloud and loops a 5-question session with no
+  taps and no need to look at the screen. A Home-screen setting controls how
+  much it says (brief line / full feedback / read the answer back / both), and
+  saying **"next question"** cuts any of it short.
 - **Three grading modes** (`lib/scoring.ts`) — Easy (key ideas, any order),
   Medium (key ideas, in order), Hard (exact words, with an STT-normalisation
   pass so "for ever" ↔ "forever" isn't penalised). Easy/Medium return a written

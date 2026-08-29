@@ -1,5 +1,5 @@
 import { wordLevelDiff } from './wordDiff';
-import { FUNCTION_WORDS, NORMALISE_RULES } from './scoringConfig';
+import { FUNCTION_WORDS, NORMALISE_RULES, MAX_LISTED_MISSING } from './scoringConfig';
 
 export type Mode = 'easy' | 'medium' | 'hard';
 
@@ -116,6 +116,12 @@ export function scoreAnswer(mode: Mode, reference: string, hypothesis: string): 
   return mode === 'hard' ? scoreHard(ref, hyp) : scoreProse(mode, ref, hyp);
 }
 
+/** "missing a, b, c" up to the cap, then "missing 9 words (from “a” on)". */
+function listOrCount(verb: string, words: string[]): string {
+  if (words.length <= MAX_LISTED_MISSING) return `${verb} ${quoteList(words)}`;
+  return `${verb} ${words.length} words (from ${quoteList([words[0]])} on)`;
+}
+
 function scoreHard(reference: string, hypothesis: string): HardScore {
   const { diffs, correctWords, totalWords, scorePercent } = wordLevelDiff(reference, hypothesis);
   const missing = diffs.filter((d) => d.op === -1).map((d) => displayWord(d.word));
@@ -125,8 +131,8 @@ function scoreHard(reference: string, hypothesis: string): HardScore {
   let breakdown = '';
   if (!exact) {
     const parts: string[] = [];
-    if (missing.length) parts.push(`missing ${quoteList(missing)}`);
-    if (extra.length) parts.push(`said ${quoteList(extra)} instead`);
+    if (missing.length) parts.push(listOrCount('missing', missing));
+    if (extra.length) parts.push(listOrCount('said', extra) + ' instead');
     breakdown = `${parts.join('; ')}.`;
     breakdown = breakdown.charAt(0).toUpperCase() + breakdown.slice(1);
   }
@@ -185,23 +191,39 @@ function scoreProse(mode: 'easy' | 'medium', reference: string, hypothesis: stri
     wordPerfect,
     orderCorrect,
     diffs,
-    feedback: templateFeedback(mode, passed, missingKeyWords, extraKeyWords, outOfOrder, wordPerfect, orderCorrect),
+    feedback: templateFeedback({
+      mode,
+      passed,
+      missing: missingKeyWords,
+      extra: extraKeyWords,
+      outOfOrder,
+      wordPerfect,
+      orderCorrect,
+      keyWordsMatched,
+      keyWordsTotal,
+    }),
   };
+}
+
+export interface TemplateFeedbackInput {
+  mode: 'easy' | 'medium';
+  passed: boolean;
+  missing: string[];
+  extra: string[];
+  outOfOrder: boolean;
+  wordPerfect: boolean;
+  orderCorrect: boolean;
+  keyWordsMatched: number;
+  keyWordsTotal: number;
 }
 
 /**
  * Deterministic fallback wording. Always factually consistent with the
  * verdict above; the LLM layer only makes it read more naturally.
  */
-export function templateFeedback(
-  mode: 'easy' | 'medium',
-  passed: boolean,
-  missing: string[],
-  extra: string[],
-  outOfOrder: boolean,
-  wordPerfect: boolean,
-  orderCorrect: boolean
-): string {
+export function templateFeedback(t: TemplateFeedbackInput): string {
+  const { mode, passed, missing, extra, outOfOrder, wordPerfect, orderCorrect } = t;
+
   // Word-for-word: say so and stop - there's nothing to correct.
   if (wordPerfect) {
     return 'That was word perfect — every word exactly as the catechism has it.';
@@ -221,7 +243,11 @@ export function templateFeedback(
     }
   }
 
-  if (missing.length) {
+  if (missing.length > MAX_LISTED_MISSING) {
+    parts.push(
+      `Large parts of the answer were missing — you had ${t.keyWordsMatched} of the ${t.keyWordsTotal} key ideas. Go back and relearn the whole answer rather than patching in single words.`
+    );
+  } else if (missing.length) {
     const carry = missing.length === 1 ? 'that word carries' : 'those words carry';
     parts.push(`You didn’t say ${quoteList(missing)} — ${carry} part of what the answer means.`);
   }
@@ -234,10 +260,35 @@ export function templateFeedback(
     );
   }
 
-  if (extra.length) {
+  if (extra.length && missing.length <= MAX_LISTED_MISSING) {
     const tail = mode === 'easy' ? ' (not counted against you in Easy mode)' : '';
     parts.push(`You added ${quoteList(extra)}, which isn’t in the answer${tail}.`);
   }
 
   return parts.join(' ');
+}
+
+function coverageWord(ratio: number): string {
+  if (ratio >= 0.9) return 'just a word or two off';
+  if (ratio >= 0.6) return 'you had most of it';
+  if (ratio >= 0.3) return 'you had some of it';
+  return 'most of the answer was missing';
+}
+
+/**
+ * The one-line spoken summary for the "Brief" and "Say answer" feedback
+ * levels. No quoted word lists, no "how to fix it" - just where you stand.
+ */
+export function briefVerdict(result: ScoreResult): string {
+  if (result.mode === 'hard') {
+    if (result.exact) return 'Word perfect.';
+    return `${result.scorePercent} percent — ${coverageWord(result.scorePercent / 100)}.`;
+  }
+  if (result.wordPerfect) return 'Word perfect.';
+  if (result.passed) {
+    if (result.mode === 'medium') return 'All the key ideas, in order.';
+    return result.orderCorrect ? 'All the key ideas, and in order.' : 'All the key ideas there.';
+  }
+  const ratio = result.keyWordsTotal ? result.keyWordsMatched / result.keyWordsTotal : 0;
+  return `Not quite — ${coverageWord(ratio)}.`;
 }
