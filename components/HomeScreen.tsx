@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useState } from 'react';
 import {
   loadProgress,
   loadSettings,
@@ -19,6 +19,8 @@ const MODES: Array<{ id: StudyMode; icon: string; label: string; description: st
   { id: 'medium', icon: '📚', label: 'Medium', description: 'Ideas, in order' },
   { id: 'hard', icon: '⚔️', label: 'Hard', description: 'Every word' },
 ];
+
+const sectionLabel = 'mb-1.5 text-xs font-semibold tracking-[1px] text-muted';
 
 export function HomeScreen({
   onBeginSession,
@@ -55,188 +57,106 @@ export function HomeScreen({
   const estimatedMinutes = Math.max(1, Math.round(setSize * 0.6));
 
   return (
-    <div style={styles.wrap}>
-      <div style={styles.topBar}>
-        <button onClick={onOpenSettings} style={styles.settingsLink}>
+    <div className="flex flex-col">
+      <div className="mb-1 flex justify-end">
+        <button
+          onClick={onOpenSettings}
+          className="cursor-pointer border-0 bg-transparent p-1 text-[13px] text-muted"
+        >
           ⚙ Settings
         </button>
       </div>
 
-      <div style={styles.header}>
-        <div style={styles.title}>Catechism Voice</div>
-        <div style={styles.subtitle}>Westminster Shorter Catechism</div>
+      <div className="mb-2 text-center">
+        <div className="text-2xl font-bold text-accent">Catechism Voice</div>
+        <div className="mt-1 text-xs text-muted">Westminster Shorter Catechism</div>
       </div>
 
-      <div style={styles.sectionLabel}>MODE</div>
-      <div style={styles.modeSelector}>
+      <div className={sectionLabel}>MODE</div>
+      <div className="mb-4 mt-2 flex gap-2">
         {MODES.map((m) => {
           const active = m.id === mode;
           return (
             <button
               key={m.id}
               onClick={() => setMode(m.id)}
-              style={{ ...styles.modeBtn, ...(active ? styles.modeBtnActive : {}) }}
+              className={`flex-1 cursor-pointer rounded-xl border-2 p-3 text-center ${
+                active ? 'border-accent bg-accent-soft' : 'border-line bg-white'
+              }`}
             >
-              <div style={{ fontSize: 20 }}>{m.icon}</div>
-              <div style={styles.modeBtnLabel}>{m.label}</div>
-              <div style={styles.modeBtnDesc}>{m.description}</div>
+              <div className="text-xl">{m.icon}</div>
+              <div className="mt-0.5 text-sm font-semibold">{m.label}</div>
+              <div className="mt-1 text-[11px] text-muted">{m.description}</div>
             </button>
           );
         })}
       </div>
 
-      <div style={styles.sectionLabel}>QUESTIONS</div>
-      <button onClick={onOpenPicker} style={styles.questionRow}>
-        <div style={styles.questionRowTop}>
-          <span style={styles.questionRowLabel}>{chosenSet.label}</span>
-          <span style={styles.questionRowChange}>Change ›</span>
+      <div className={sectionLabel}>QUESTIONS</div>
+      <button
+        onClick={onOpenPicker}
+        className="my-2 flex w-full cursor-pointer flex-col gap-1 rounded-xl border-2 border-line bg-card px-3.5 py-3 text-left"
+      >
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="text-sm font-semibold text-ink">{chosenSet.label}</span>
+          <span className="shrink-0 text-xs font-semibold text-accent">Change ›</span>
         </div>
-        <span style={styles.questionRowMeta}>
+        <span className="text-xs text-muted">
           {setSize} question{setSize === 1 ? '' : 's'} · the whole set each session
         </span>
-        {chosenSet.blurb && <span style={styles.questionRowBlurb}>{chosenSet.blurb}</span>}
+        {chosenSet.blurb && (
+          <span className="mt-0.5 text-xs leading-normal text-muted">{chosenSet.blurb}</span>
+        )}
       </button>
 
-      <div style={styles.streakBar}>
-        <div style={styles.streakNum}>{progress?.streak ?? 0}</div>
+      <div className="my-4 flex items-center gap-3 rounded-xl bg-card p-4">
+        <div className="text-[28px] font-bold text-accent">{progress?.streak ?? 0}</div>
         <div>
-          <div style={{ ...styles.streakText, fontWeight: 600, color: '#333' }}>Day streak</div>
-          <div style={styles.streakText}>
+          <div className="text-[13px] font-semibold text-[#333]">Day streak</div>
+          <div className="text-[13px] text-[#666]">
             {nextBadge ? `Keep going for the ${nextBadge.emoji} badge` : 'All badges earned!'}
           </div>
         </div>
       </div>
 
-      <div style={styles.sectionLabel}>BADGES</div>
-      <div style={styles.badgeRow}>
+      <div className={sectionLabel}>BADGES</div>
+      <div className="flex gap-2">
         {badges.map((b) => (
           <div
             key={b.label}
             title={b.label}
-            style={{ ...styles.badge, ...(b.earned ? styles.badgeEarned : {}) }}
+            className={`flex h-8 w-8 items-center justify-center rounded-full text-sm ${
+              b.earned ? 'bg-badge-earned' : 'bg-badge-empty'
+            }`}
           >
             {b.emoji}
           </div>
         ))}
       </div>
 
-      <div style={{ marginTop: 20 }}>
-        <div style={styles.sectionLabel}>PROGRESS</div>
-        <div style={styles.progressTrack}>
-          <div style={{ ...styles.progressFill, width: `${progressPct}%` }} />
+      <div className="mt-5">
+        <div className={sectionLabel}>PROGRESS</div>
+        <div className="h-2 overflow-hidden rounded bg-[#eee]">
+          <div
+            className="h-full rounded bg-accent transition-[width] duration-300"
+            style={{ width: `${progressPct}%` }}
+          />
         </div>
-        <div style={styles.progressCaption}>
+        <div className="mt-1 text-xs text-muted">
           {mastered} of {total} mastered
         </div>
       </div>
 
       <button
         onClick={() => onBeginSession(mode, feedbackLevel, questionSetId)}
-        style={styles.startBtn}
+        className="mt-8 w-full cursor-pointer rounded-2xl border-0 bg-accent py-[18px] text-[17px] font-semibold tracking-[0.3px] text-white"
       >
         Begin Session
       </button>
-      <div style={styles.sessionCaption}>
+      <div className="mt-3 text-center text-[13px] text-muted">
         {setSize} question{setSize === 1 ? '' : 's'} · ~{estimatedMinutes} minute
         {estimatedMinutes === 1 ? '' : 's'}
       </div>
     </div>
   );
 }
-
-const styles: Record<string, CSSProperties> = {
-  wrap: { display: 'flex', flexDirection: 'column' },
-  topBar: { display: 'flex', justifyContent: 'flex-end', marginBottom: 4 },
-  settingsLink: {
-    border: 'none',
-    background: 'transparent',
-    color: '#888',
-    fontSize: 13,
-    cursor: 'pointer',
-    padding: 4,
-  },
-  header: { textAlign: 'center', marginBottom: 8 },
-  title: { fontSize: 24, fontWeight: 700, color: '#3d5a80' },
-  subtitle: { fontSize: 12, color: '#888', marginTop: 4 },
-  sectionLabel: { fontSize: 12, color: '#888', marginBottom: 6, letterSpacing: 1, fontWeight: 600 },
-  modeSelector: { display: 'flex', gap: 8, margin: '8px 0 16px' },
-  modeBtn: {
-    flex: 1,
-    padding: 12,
-    borderWidth: 2,
-    borderStyle: 'solid',
-    borderColor: '#d0cec8',
-    borderRadius: 12,
-    textAlign: 'center',
-    background: '#fff',
-    cursor: 'pointer',
-  },
-  modeBtnActive: { borderColor: '#3d5a80', background: '#f0f4f8' },
-  modeBtnLabel: { fontWeight: 600, fontSize: 14, marginTop: 2 },
-  modeBtnDesc: { fontSize: 11, color: '#888', marginTop: 4 },
-  questionRow: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 4,
-    width: '100%',
-    padding: '12px 14px',
-    borderWidth: 2,
-    borderStyle: 'solid',
-    borderColor: '#d0cec8',
-    borderRadius: 12,
-    background: '#faf9f6',
-    cursor: 'pointer',
-    textAlign: 'left',
-    margin: '8px 0',
-  },
-  questionRowTop: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-    gap: 8,
-  },
-  questionRowLabel: { fontWeight: 600, fontSize: 14, color: '#2a2a2a' },
-  questionRowChange: { fontSize: 12, color: '#3d5a80', fontWeight: 600, flexShrink: 0 },
-  questionRowMeta: { fontSize: 12, color: '#888' },
-  questionRowBlurb: { fontSize: 12, color: '#888', lineHeight: 1.5, marginTop: 2 },
-  streakBar: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 12,
-    padding: 16,
-    background: '#faf9f6',
-    borderRadius: 12,
-    margin: '16px 0',
-  },
-  streakNum: { fontSize: 28, fontWeight: 700, color: '#3d5a80' },
-  streakText: { fontSize: 13, color: '#666' },
-  badgeRow: { display: 'flex', gap: 8 },
-  badge: {
-    width: 32,
-    height: 32,
-    borderRadius: '50%',
-    background: '#e8dfd0',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: 14,
-  },
-  badgeEarned: { background: '#d4a853' },
-  progressTrack: { background: '#eee', height: 8, borderRadius: 4, overflow: 'hidden' },
-  progressFill: { background: '#3d5a80', height: '100%', borderRadius: 4, transition: 'width 300ms ease' },
-  progressCaption: { fontSize: 12, color: '#888', marginTop: 4 },
-  startBtn: {
-    width: '100%',
-    padding: 18,
-    background: '#3d5a80',
-    color: '#fff',
-    border: 'none',
-    borderRadius: 16,
-    fontSize: 17,
-    fontWeight: 600,
-    marginTop: 32,
-    cursor: 'pointer',
-    letterSpacing: 0.3,
-  },
-  sessionCaption: { textAlign: 'center', color: '#888', fontSize: 13, marginTop: 12 },
-};
