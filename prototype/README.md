@@ -7,21 +7,39 @@ Shorter Catechism are in `lib/seed.json`, parsed programmatically from
 (public domain, 1647) rather than transcribed by hand, to minimize the risk
 of a wrong word slipping into the answer key.
 
-## Sessions, not all 107 at once
+## Choosing what a session covers
 
-`lib/progressStore.ts` picks a 5-question batch per session, starting at the
-first not-yet-mastered question (by id order) and wrapping back to the start
-once everything's mastered. This is a simple sequential picker, not real
-spaced repetition - good enough to prove the loop, not a finished study
-algorithm.
+`getSessionQuestions` in `lib/progressStore.ts` returns **every** question in
+the chosen set, rotated so it starts at the first not-yet-mastered one (so you
+resume roughly where you left off). There is no fixed session length - a set of
+9 is a 9-question session, all 107 is a 107-question session.
 
-The **QUESTIONS** selector on the Home screen narrows the pool the batch is
-drawn from: the whole catechism, a block of ten (`Q1-10`, `Q11-20`, …), one of
-the seven standard themes (`Foundations & Nature of God`, `The Fall, Sin &
-Human Misery`, …), or a finer topic (`The three offices of Christ`, `4th
-Commandment - the Sabbath`, …). The sets are contiguous id ranges defined in
-`lib/questionSets.ts`; the choice is remembered in `localStorage`. If a set has
-fewer than five questions the session is just that set.
+The **QUESTIONS** card on the Home screen opens a picker
+(`components/QuestionSetPicker.tsx`) for choosing the set: the whole catechism,
+a block of ten (`Q1-10`, `Q11-20`, …), one of the seven standard themes
+(`Foundations & Nature of God`, `The Fall, Sin & Human Misery`, …), or a finer
+topic (`The three offices of Christ`, `4th Commandment - the Sabbath`, …). The
+sets are contiguous id ranges defined in `lib/questionSets.ts`; the choice is
+remembered in `localStorage`.
+
+Starting order is still a simple "first unmastered, then wrap" rule, not real
+spaced repetition - deliberately out of scope for this stage.
+
+## Screen wake lock
+
+Hands-free mode requests a **Screen Wake Lock** (`navigator.wakeLock`) for the
+duration of a session so a slow recitation isn't cut off by the display
+sleeping. It's re-requested on `visibilitychange` (the lock drops when the tab
+is backgrounded) and released when the session ends. If the browser denies it
+(older Safari, battery saver, no HTTPS) the session still runs - the screen may
+just dim as before.
+
+## Settings
+
+Feedback verbosity (what the app says out loud after each attempt) lives on a
+separate **Settings** screen (`components/SettingsScreen.tsx`), reached from the
+⚙ link on the Home screen. Both the feedback level and the question set are
+stored under the same `catechism-voice-settings-v1` key.
 
 ## Settings
 
@@ -244,13 +262,14 @@ npm run test:scoring
 
 ```
 app/
-  page.tsx                     — view switcher (Home / Settings / Hands-Free / Manual)
+  page.tsx                     — view switcher (Home / Settings / Picker / Hands-Free / Manual)
   layout.tsx                   — root layout; loads Noto Serif via next/font
   globals.css                  — @keyframes pulse (the one thing inline styles can't do)
   api/transcribe/route.ts      — proxies audio to Groq Whisper large-v3
   api/feedback/route.ts        — phrases the Easy/Medium result via a Groq LLM
 components/
-  HomeScreen.tsx                — mode + question-set selectors, streak, badges, progress
+  HomeScreen.tsx                — mode + question-set choice, streak, badges, progress
+  QuestionSetPicker.tsx         — full-screen menu for choosing the question set
   SettingsScreen.tsx            — feedback-level selector (reached via ⚙ from Home)
   ManualMode.tsx                 — tap-to-record flow + mode toggle (dev/testing)
   HandsFreeMode.tsx              — speak → listen → silence → score → read result aloud → loop

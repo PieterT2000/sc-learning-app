@@ -32,6 +32,17 @@ const MODE_META: Record<StudyMode, { icon: string; blurb: string }> = {
   hard: { icon: '⚔️', blurb: 'every word, exactly' },
 };
 
+// How many questions to spell out on the start-screen overview before
+// collapsing the rest into a "+ N more" line.
+const OVERVIEW_PREVIEW = 8;
+
+// Minimal shape of a Screen Wake Lock sentinel - avoids depending on the
+// lib.dom typings, which aren't present in every toolchain.
+type WakeLockSentinelLike = {
+  release: () => Promise<void>;
+  addEventListener?: (type: 'release', listener: () => void) => void;
+};
+
 type Phase =
   | 'off'
   | 'asking'
@@ -76,6 +87,8 @@ export function HandsFreeMode({
   const captionRef = useRef<LiveCaptionHandle | null>(null);
   const skipRef = useRef<SkipListenerHandle | null>(null);
 
+  const wakeLockRef = useRef<WakeLockSentinelLike | null>(null);
+
   const activeRef = useRef(false); // false once the session has been torn down
   const currentIndexRef = useRef(0);
   const hasSpokenRef = useRef(false);
@@ -88,6 +101,35 @@ export function HandsFreeMode({
   const isListening = phase === 'listening' || phase === 'capturing' || phase === 'stalled';
   const selectedFeedback =
     FEEDBACK_LEVELS.find((f) => f.id === feedbackLevel) ?? FEEDBACK_LEVELS[1];
+
+  // Keep the screen on for the duration of a hands-free session so a slow
+  // recitation doesn't get cut off by the display sleeping. The lock is
+  // dropped automatically when the tab is hidden, so we re-request it on
+  // visibilitychange (below) while the session is still active.
+  const acquireWakeLock = useCallback(async () => {
+    if (wakeLockRef.current) return;
+    try {
+      const wl = (
+        navigator as Navigator & {
+          wakeLock?: { request: (type: 'screen') => Promise<WakeLockSentinelLike> };
+        }
+      ).wakeLock;
+      if (!wl) return;
+      const sentinel = await wl.request('screen');
+      wakeLockRef.current = sentinel;
+      sentinel.addEventListener?.('release', () => {
+        wakeLockRef.current = null;
+      });
+    } catch {
+      // Not fatal - the OS may still dim the screen (battery saver, no
+      // permission, not visible). Nothing more we can do.
+    }
+  }, []);
+
+  const releaseWakeLock = useCallback(() => {
+    wakeLockRef.current?.release().catch(() => {});
+    wakeLockRef.current = null;
+  }, []);
 
   const teardownAudio = useCallback(() => {
     vadRef.current?.stop();
@@ -129,6 +171,7 @@ export function HandsFreeMode({
     (reason?: string, completed = false) => {
       activeRef.current = false;
       if (typeof window !== 'undefined') window.speechSynthesis?.cancel();
+      releaseWakeLock();
       teardownAudio();
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
@@ -138,7 +181,7 @@ export function HandsFreeMode({
       if (reason) setError(reason);
       onExit(completed);
     },
-    [teardownAudio, onExit]
+    [teardownAudio, releaseWakeLock, onExit]
   );
 
   // Safety net if the user navigates away or switches modes mid-session.
@@ -146,12 +189,24 @@ export function HandsFreeMode({
     return () => {
       activeRef.current = false;
       if (typeof window !== 'undefined') window.speechSynthesis?.cancel();
+      wakeLockRef.current?.release().catch(() => {});
+      wakeLockRef.current = null;
       vadRef.current?.stop();
       captionRef.current?.stop();
       skipRef.current?.stop();
       streamRef.current?.getTracks().forEach((t) => t.stop());
     };
   }, []);
+
+  // The wake lock drops when the tab is backgrounded; take it again on return
+  // if we're still mid-session.
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible' && activeRef.current) void acquireWakeLock();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, [acquireWakeLock]);
 
   const finishCapture = useCallback((outcome: 'answered' | 'no-answer') => {
     if (captureFinishedRef.current) return;
@@ -367,6 +422,7 @@ export function HandsFreeMode({
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
       activeRef.current = true;
+      void acquireWakeLock(); // keep the screen on for the whole session
       primeVoices(); // must be called from this user-gesture handler for iOS
       await goToQuestion(0);
     } catch (err) {
@@ -375,7 +431,7 @@ export function HandsFreeMode({
         'Could not access the microphone. Hands-free mode needs mic access - on phones this also requires HTTPS, see README.'
       );
     }
-  }, [goToQuestion]);
+  }, [goToQuestion, acquireWakeLock]);
 
   const iAmDone = useCallback(() => {
     if (phase === 'listening' || phase === 'stalled' || phase === 'capturing') {
@@ -443,18 +499,27 @@ export function HandsFreeMode({
 
           <div style={styles.questionNum}>QUESTIONS</div>
           <ol style={styles.qList}>
-            {questions.map((q, i) => (
+            {questions.slice(0, OVERVIEW_PREVIEW).map((q, i, shown) => (
               <li
                 key={q.id}
                 style={{
                   ...styles.qItem,
-                  borderBottom: i === questions.length - 1 ? 'none' : '1px solid #ececec',
+                  borderBottom:
+                    i === shown.length - 1 && questions.length <= OVERVIEW_PREVIEW
+                      ? 'none'
+                      : '1px solid #ececec',
                 }}
               >
                 <span style={styles.qId}>Q{q.id}</span>
                 <span>{q.question}</span>
               </li>
             ))}
+            {questions.length > OVERVIEW_PREVIEW && (
+              <li style={{ ...styles.qItem, borderBottom: 'none', color: '#888' }}>
+                <span style={styles.qId} />
+                <span>+ {questions.length - OVERVIEW_PREVIEW} more</span>
+              </li>
+            )}
           </ol>
 
           <p style={styles.overviewHint}>

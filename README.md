@@ -65,13 +65,15 @@ It implements:
   (iOS `audio/mp4` vs Chrome/Android `audio/webm;codecs=opus`).
 - **Manual mode** — tap to record; for isolating mic/Groq/diff issues per device.
 - **Hands-Free mode** — speaks the question, listens, auto-detects when you stop
-  talking, then reads the result aloud and loops a 5-question session with no
-  taps and no need to look at the screen. A **Settings** screen controls how
-  much it says (brief line / full feedback / read the answer back / both), and
-  saying **"next question"** cuts any of it short.
-- **Question sets** — the Home screen lets you pick what a session draws from:
-  the whole catechism, a block of ten, or one of the standard WSC themes /
-  topics (`lib/questionSets.ts`).
+  talking, then reads the result aloud and loops through the whole chosen set
+  with no taps and no need to look at the screen. Holds a **screen wake lock**
+  so a slow recitation isn't cut off by the display sleeping. A **Settings**
+  screen controls how much it says (brief line / full feedback / read the answer
+  back / both), and saying **"next question"** cuts any of it short.
+- **Question sets** — a picker on the Home screen chooses what a session
+  covers: the whole catechism, a block of ten, or one of the standard WSC
+  themes / topics (`lib/questionSets.ts`). The session runs the whole set — no
+  fixed length.
 - **Three grading modes** (`lib/scoring.ts`) — Easy (key ideas, any order),
   Medium (key ideas, in order), Hard (exact words, with an STT-normalisation
   pass so "for ever" ↔ "forever" isn't penalised). Easy/Medium return a written
