@@ -4,10 +4,12 @@ import { useState, type CSSProperties } from 'react';
 import { HomeScreen, type StudyMode } from '@/components/HomeScreen';
 import { HandsFreeMode } from '@/components/HandsFreeMode';
 import { ManualMode } from '@/components/ManualMode';
+import { SettingsScreen } from '@/components/SettingsScreen';
 import { getSessionQuestions, type CatechismQuestion } from '@/lib/progressStore';
+import { idsForQuestionSet } from '@/lib/questionSets';
 import { DEFAULT_FEEDBACK_LEVEL, type FeedbackLevel } from '@/lib/feedbackLevels';
 
-type View = 'home' | 'hands-free' | 'manual';
+type View = 'home' | 'hands-free' | 'manual' | 'settings';
 
 const SESSION_SIZE = 5;
 
@@ -17,16 +19,26 @@ export default function Home() {
   const [feedbackLevel, setFeedbackLevel] = useState<FeedbackLevel>(DEFAULT_FEEDBACK_LEVEL);
   const [sessionQuestions, setSessionQuestions] = useState<CatechismQuestion[]>([]);
 
-  const beginSession = (chosenMode: StudyMode, chosenFeedbackLevel: FeedbackLevel) => {
+  const beginSession = (
+    chosenMode: StudyMode,
+    chosenFeedbackLevel: FeedbackLevel,
+    chosenQuestionSetId: string
+  ) => {
     setMode(chosenMode);
     setFeedbackLevel(chosenFeedbackLevel);
-    setSessionQuestions(getSessionQuestions(SESSION_SIZE));
+    setSessionQuestions(
+      getSessionQuestions(SESSION_SIZE, idsForQuestionSet(chosenQuestionSetId))
+    );
     setView('hands-free');
   };
 
   return (
     <main style={styles.main}>
-      {view === 'home' && <HomeScreen onBeginSession={beginSession} />}
+      {view === 'home' && (
+        <HomeScreen onBeginSession={beginSession} onOpenSettings={() => setView('settings')} />
+      )}
+
+      {view === 'settings' && <SettingsScreen onBack={() => setView('home')} />}
 
       {view === 'hands-free' && (
         <HandsFreeMode
