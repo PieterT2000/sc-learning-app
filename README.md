@@ -28,12 +28,16 @@ core Home → Listening → Diff flow.
 | --- | --- |
 | Design doc | Complete — [`docs/design.md`](docs/design.md) |
 | STT engine choice | Validated — Groq Whisper Large v3 handles archaic vocabulary; Web Speech API does not (kept only as a fallback) |
-| Core-loop prototype | In review — [`prototype/`](prototype/), PR [#1](https://github.com/PieterT2000/sc-learning-app/pull/1) |
-| Full app (Next.js + Supabase, 3 modes, groups) | Not started |
+| TTS engine choice | Validated — Azure AI Speech `en-GB` neural voice (free tier), browser `speechSynthesis` as fallback |
+| Core-loop prototype | In review — [`prototype/`](prototype/), PR [#2](https://github.com/PieterT2000/sc-learning-app/pull/2) |
+| Production app (persistence, auth, PWA, deploy) | Planning — [`docs/production-roadmap.md`](docs/production-roadmap.md) |
 
-This repo currently holds a **design** and a **throwaway prototype that proves
-the core loop**. The production app described in the design doc has not been
-built yet.
+The prototype has grown well past "proves the core loop" — it now covers roughly
+**70% of the design doc's client experience** (all three grading modes,
+hands-free sessions, TTS, question sets, local streaks/badges). What's left for
+production is persistence + auth (Supabase), the PWA shell, deployment, the "Why
+This Matters" reflections, and the social layer. See
+[`docs/production-roadmap.md`](docs/production-roadmap.md) for the phased plan.
 
 ## Repository layout
 
@@ -65,10 +69,15 @@ It implements:
   (iOS `audio/mp4` vs Chrome/Android `audio/webm;codecs=opus`).
 - **Manual mode** — tap to record; for isolating mic/Groq/diff issues per device.
 - **Hands-Free mode** — speaks the question, listens, auto-detects when you stop
-  talking, then reads the result aloud and loops a 5-question session with no
-  taps and no need to look at the screen. A Home-screen setting controls how
-  much it says (brief line / full feedback / read the answer back / both), and
-  saying **"next question"** cuts any of it short.
+  talking, then reads the result aloud and loops through the whole chosen set
+  with no taps and no need to look at the screen. Holds a **screen wake lock**
+  so a slow recitation isn't cut off by the display sleeping. A **Settings**
+  screen controls how much it says (brief line / full feedback / read the answer
+  back / both), and saying **"next question"** cuts any of it short.
+- **Question sets** — a picker on the Home screen chooses what a session
+  covers: the whole catechism, a block of ten, or one of the standard WSC
+  themes / topics (`lib/questionSets.ts`). The session runs the whole set — no
+  fixed length.
 - **Three grading modes** (`lib/scoring.ts`) — Easy (key ideas, any order),
   Medium (key ideas, in order), Hard (exact words, with an STT-normalisation
   pass so "for ever" ↔ "forever" isn't penalised). Easy/Medium return a written
@@ -130,7 +139,8 @@ From [`docs/design.md`](docs/design.md):
 - **Next.js 14** (App Router) on Vercel free tier
 - **Supabase** free tier for auth, Postgres, and cross-device sync
 - **Groq Whisper Large v3** for STT via a server route that hides the API key
-- Browser **SpeechSynthesis** API for TTS (free, built-in)
+- **Azure AI Speech** (`en-GB` neural, free tier) for TTS via a server route,
+  with browser **SpeechSynthesis** as the offline/failure fallback
 - **`diff-match-patch`** with a word-level tokenization wrapper
 - Tailwind CSS, `next-pwa` for an installable phone-first PWA
 - Three modes — **Learning** (whispered prompts when you stall), **Easy** (gist
@@ -141,16 +151,16 @@ From [`docs/design.md`](docs/design.md):
 
 1. ✅ Design doc and wireframe
 2. ✅ Validate Groq Whisper on archaic vocabulary (`tools/groq-speech-test`)
-3. 🔄 Prove the core record → transcribe → diff → score loop on a phone
-   (`prototype/`, PR [#1](https://github.com/PieterT2000/sc-learning-app/pull/1))
-4. ⬜ Scaffold the real Next.js + Tailwind + `next-pwa` app
-5. ⬜ Groq STT proxy route with the archaic-vocabulary prompt hint
-6. ⬜ Seed WSC content into Supabase, incl. hand-written reflections
-7. ⬜ Build the core loop screen, then add TTS for hands-free
-8. ⬜ Learning mode (silence detection + whispered prompts)
-9. ⬜ Sessions, streaks, badges
-10. ⬜ Groups and leaderboards
-11. ⬜ Ship to a church group and watch real usage
+3. ✅ Core record → transcribe → diff → score loop on a phone (`prototype/`)
+4. ✅ Groq STT proxy route with the archaic-vocabulary prompt hint
+5. ✅ TTS for hands-free (Azure `en-GB` neural, browser fallback)
+6. ✅ Three grading modes, hands-free sessions, question sets, local streaks/badges
+7. 🔄 **Productionize** — see [`docs/production-roadmap.md`](docs/production-roadmap.md):
+   - Phase 1: PWA shell, fallback chain, deploy to Vercel, CI
+   - Phase 2: Supabase persistence + auth + cross-device sync, per-mode mastery
+   - Phase 3: "Why This Matters" reflections
+   - Phase 4: launch to one church group with usage instrumentation
+   - Phase 5: Learning mode (whispered prompts), groups, leaderboards
 
 ## License / content
 

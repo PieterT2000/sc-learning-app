@@ -1,5 +1,6 @@
 import seedQuestions from './seed.json';
 import { DEFAULT_FEEDBACK_LEVEL, type FeedbackLevel } from './feedbackLevels';
+import { ALL_SET_ID } from './questionSets';
 
 const STORAGE_KEY = 'catechism-voice-progress-v1';
 const SETTINGS_KEY = 'catechism-voice-settings-v1';
@@ -82,10 +83,13 @@ export function getMasteredCount(state: ProgressState): number {
 
 export interface Settings {
   feedbackLevel: FeedbackLevel;
+  /** id of the chosen question set (see lib/questionSets.ts). */
+  questionSetId: string;
 }
 
 const DEFAULT_SETTINGS: Settings = {
   feedbackLevel: DEFAULT_FEEDBACK_LEVEL,
+  questionSetId: ALL_SET_ID,
 };
 
 export function loadSettings(): Settings {
@@ -116,28 +120,24 @@ export interface CatechismQuestion {
 const allQuestions = seedQuestions as CatechismQuestion[];
 
 /**
- * Picks the next batch of questions for a session: starts at the first
- * not-yet-mastered question (by id order) so sessions roughly continue
- * where the last one left off, and wraps back to the start once everything
- * is mastered (for ongoing review). This is a simple sequential picker, not
- * real spaced repetition - deliberately out of scope for this stage.
+ * Returns the questions for a session: every question in the chosen set,
+ * rotated to start at the first not-yet-mastered one so you resume roughly
+ * where you left off. A session is the whole set now - no fixed cap.
+ *
+ * `allowedIds`, when given, restricts the pool to those question ids (the
+ * user's chosen question set - see lib/questionSets.ts).
  */
-export function getSessionQuestions(sessionSize: number): CatechismQuestion[] {
+export function getSessionQuestions(allowedIds?: number[]): CatechismQuestion[] {
   const state = loadProgress();
-  const total = allQuestions.length;
+  const allow = allowedIds && allowedIds.length > 0 ? new Set(allowedIds) : null;
+  const pool = allow ? allQuestions.filter((q) => allow.has(q.id)) : allQuestions;
+  const total = pool.length;
   if (total === 0) return [];
 
-  const startIndex = allQuestions.findIndex(
-    (q) => (state.bestScores[q.id] ?? 0) < MASTERY_THRESHOLD
-  );
+  const startIndex = pool.findIndex((q) => (state.bestScores[q.id] ?? 0) < MASTERY_THRESHOLD);
   const start = startIndex === -1 ? 0 : startIndex;
 
-  const batch: CatechismQuestion[] = [];
-  const size = Math.min(sessionSize, total);
-  for (let i = 0; i < size; i++) {
-    batch.push(allQuestions[(start + i) % total]);
-  }
-  return batch;
+  return pool.map((_, i) => pool[(start + i) % total]);
 }
 
 export function getTotalQuestions(): number {

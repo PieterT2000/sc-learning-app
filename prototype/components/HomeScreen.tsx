@@ -4,17 +4,15 @@ import { useEffect, useState, type CSSProperties } from 'react';
 import {
   loadProgress,
   loadSettings,
-  saveSettings,
   getMasteredCount,
   getTotalQuestions,
   getBadges,
   type ProgressState,
 } from '@/lib/progressStore';
-import { FEEDBACK_LEVELS, DEFAULT_FEEDBACK_LEVEL, type FeedbackLevel } from '@/lib/feedbackLevels';
+import { DEFAULT_FEEDBACK_LEVEL, type FeedbackLevel } from '@/lib/feedbackLevels';
+import { questionSetById, questionSetSize, ALL_SET_ID } from '@/lib/questionSets';
 
 export type StudyMode = 'easy' | 'medium' | 'hard';
-
-const SESSION_SIZE = 5;
 
 const MODES: Array<{ id: StudyMode; icon: string; label: string; description: string }> = [
   { id: 'easy', icon: '📖', label: 'Easy', description: 'Key ideas' },
@@ -24,11 +22,16 @@ const MODES: Array<{ id: StudyMode; icon: string; label: string; description: st
 
 export function HomeScreen({
   onBeginSession,
+  onOpenSettings,
+  onOpenPicker,
 }: {
-  onBeginSession: (mode: StudyMode, feedbackLevel: FeedbackLevel) => void;
+  onBeginSession: (mode: StudyMode, feedbackLevel: FeedbackLevel, questionSetId: string) => void;
+  onOpenSettings: () => void;
+  onOpenPicker: () => void;
 }) {
   const [mode, setMode] = useState<StudyMode>('easy');
   const [feedbackLevel, setFeedbackLevel] = useState<FeedbackLevel>(DEFAULT_FEEDBACK_LEVEL);
+  const [questionSetId, setQuestionSetId] = useState<string>(ALL_SET_ID);
   const [progress, setProgress] = useState<ProgressState | null>(null);
 
   // Read from localStorage only on the client, after mount, to avoid an
@@ -36,13 +39,10 @@ export function HomeScreen({
   // doesn't exist during that pass).
   useEffect(() => {
     setProgress(loadProgress());
-    setFeedbackLevel(loadSettings().feedbackLevel);
+    const s = loadSettings();
+    setFeedbackLevel(s.feedbackLevel);
+    setQuestionSetId(s.questionSetId);
   }, []);
-
-  const chooseFeedbackLevel = (level: FeedbackLevel) => {
-    setFeedbackLevel(level);
-    saveSettings({ feedbackLevel: level });
-  };
 
   const mastered = progress ? getMasteredCount(progress) : 0;
   const total = getTotalQuestions();
@@ -50,11 +50,18 @@ export function HomeScreen({
   const badges = progress ? getBadges(progress) : [];
   const nextBadge = badges.find((b) => !b.earned);
 
-  const sessionCount = Math.min(SESSION_SIZE, total);
-  const estimatedMinutes = Math.max(1, Math.round(sessionCount * 0.6));
+  const chosenSet = questionSetById(questionSetId);
+  const setSize = questionSetSize(questionSetId);
+  const estimatedMinutes = Math.max(1, Math.round(setSize * 0.6));
 
   return (
     <div style={styles.wrap}>
+      <div style={styles.topBar}>
+        <button onClick={onOpenSettings} style={styles.settingsLink}>
+          ⚙ Settings
+        </button>
+      </div>
+
       <div style={styles.header}>
         <div style={styles.title}>Catechism Voice</div>
         <div style={styles.subtitle}>Westminster Shorter Catechism</div>
@@ -78,25 +85,17 @@ export function HomeScreen({
         })}
       </div>
 
-      <div style={styles.sectionLabel}>FEEDBACK</div>
-      <div style={styles.feedbackSelector}>
-        {FEEDBACK_LEVELS.map((f) => {
-          const active = f.id === feedbackLevel;
-          return (
-            <button
-              key={f.id}
-              onClick={() => chooseFeedbackLevel(f.id)}
-              style={{ ...styles.feedbackBtn, ...(active ? styles.feedbackBtnActive : {}) }}
-            >
-              <span style={styles.feedbackBtnLabel}>{f.label}</span>
-              <span style={styles.feedbackBtnBlurb}>{f.blurb}</span>
-            </button>
-          );
-        })}
-      </div>
-      <div style={styles.feedbackHint}>
-        In hands-free mode, say “next question” to skip the rest.
-      </div>
+      <div style={styles.sectionLabel}>QUESTIONS</div>
+      <button onClick={onOpenPicker} style={styles.questionRow}>
+        <div style={styles.questionRowTop}>
+          <span style={styles.questionRowLabel}>{chosenSet.label}</span>
+          <span style={styles.questionRowChange}>Change ›</span>
+        </div>
+        <span style={styles.questionRowMeta}>
+          {setSize} question{setSize === 1 ? '' : 's'} · the whole set each session
+        </span>
+        {chosenSet.blurb && <span style={styles.questionRowBlurb}>{chosenSet.blurb}</span>}
+      </button>
 
       <div style={styles.streakBar}>
         <div style={styles.streakNum}>{progress?.streak ?? 0}</div>
@@ -131,11 +130,14 @@ export function HomeScreen({
         </div>
       </div>
 
-      <button onClick={() => onBeginSession(mode, feedbackLevel)} style={styles.startBtn}>
+      <button
+        onClick={() => onBeginSession(mode, feedbackLevel, questionSetId)}
+        style={styles.startBtn}
+      >
         Begin Session
       </button>
       <div style={styles.sessionCaption}>
-        {sessionCount} question{sessionCount === 1 ? '' : 's'} · ~{estimatedMinutes} minute
+        {setSize} question{setSize === 1 ? '' : 's'} · ~{estimatedMinutes} minute
         {estimatedMinutes === 1 ? '' : 's'}
       </div>
     </div>
@@ -144,6 +146,15 @@ export function HomeScreen({
 
 const styles: Record<string, CSSProperties> = {
   wrap: { display: 'flex', flexDirection: 'column' },
+  topBar: { display: 'flex', justifyContent: 'flex-end', marginBottom: 4 },
+  settingsLink: {
+    border: 'none',
+    background: 'transparent',
+    color: '#888',
+    fontSize: 13,
+    cursor: 'pointer',
+    padding: 4,
+  },
   header: { textAlign: 'center', marginBottom: 8 },
   title: { fontSize: 24, fontWeight: 700, color: '#3d5a80' },
   subtitle: { fontSize: 12, color: '#888', marginTop: 4 },
@@ -152,7 +163,9 @@ const styles: Record<string, CSSProperties> = {
   modeBtn: {
     flex: 1,
     padding: 12,
-    border: '2px solid #d0cec8',
+    borderWidth: 2,
+    borderStyle: 'solid',
+    borderColor: '#d0cec8',
     borderRadius: 12,
     textAlign: 'center',
     background: '#fff',
@@ -161,23 +174,31 @@ const styles: Record<string, CSSProperties> = {
   modeBtnActive: { borderColor: '#3d5a80', background: '#f0f4f8' },
   modeBtnLabel: { fontWeight: 600, fontSize: 14, marginTop: 2 },
   modeBtnDesc: { fontSize: 11, color: '#888', marginTop: 4 },
-  feedbackSelector: { display: 'flex', flexDirection: 'column', gap: 6, margin: '8px 0 6px' },
-  feedbackBtn: {
+  questionRow: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 4,
+    width: '100%',
+    padding: '12px 14px',
+    borderWidth: 2,
+    borderStyle: 'solid',
+    borderColor: '#d0cec8',
+    borderRadius: 12,
+    background: '#faf9f6',
+    cursor: 'pointer',
+    textAlign: 'left',
+    margin: '8px 0',
+  },
+  questionRowTop: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'baseline',
-    gap: 10,
-    padding: '10px 12px',
-    border: '2px solid #d0cec8',
-    borderRadius: 10,
-    background: '#fff',
-    cursor: 'pointer',
-    textAlign: 'left',
+    gap: 8,
   },
-  feedbackBtnActive: { borderColor: '#3d5a80', background: '#f0f4f8' },
-  feedbackBtnLabel: { fontWeight: 600, fontSize: 13 },
-  feedbackBtnBlurb: { fontSize: 11, color: '#888' },
-  feedbackHint: { fontSize: 11, color: '#aaa', margin: '0 0 16px' },
+  questionRowLabel: { fontWeight: 600, fontSize: 14, color: '#2a2a2a' },
+  questionRowChange: { fontSize: 12, color: '#3d5a80', fontWeight: 600, flexShrink: 0 },
+  questionRowMeta: { fontSize: 12, color: '#888' },
+  questionRowBlurb: { fontSize: 12, color: '#888', lineHeight: 1.5, marginTop: 2 },
   streakBar: {
     display: 'flex',
     alignItems: 'center',
@@ -185,7 +206,7 @@ const styles: Record<string, CSSProperties> = {
     padding: 16,
     background: '#faf9f6',
     borderRadius: 12,
-    margin: '4px 0 16px',
+    margin: '16px 0',
   },
   streakNum: { fontSize: 28, fontWeight: 700, color: '#3d5a80' },
   streakText: { fontSize: 13, color: '#666' },

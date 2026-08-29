@@ -7,13 +7,40 @@ Shorter Catechism are in `lib/seed.json`, parsed programmatically from
 (public domain, 1647) rather than transcribed by hand, to minimize the risk
 of a wrong word slipping into the answer key.
 
-## Sessions, not all 107 at once
+## Choosing what a session covers
 
-`lib/progressStore.ts` picks a 5-question batch per session, starting at the
-first not-yet-mastered question (by id order) and wrapping back to the start
-once everything's mastered. This is a simple sequential picker, not real
-spaced repetition - good enough to prove the loop, not a finished study
-algorithm.
+`getSessionQuestions` in `lib/progressStore.ts` returns **every** question in
+the chosen set, rotated so it starts at the first not-yet-mastered one (so you
+resume roughly where you left off). There is no fixed session length - a set of
+9 is a 9-question session, all 107 is a 107-question session.
+
+The **QUESTIONS** card on the Home screen opens a picker
+(`components/QuestionSetPicker.tsx`) for choosing the set: the whole catechism,
+a block of ten (`Q1-10`, `Q11-20`, …), one of the seven standard themes
+(`Foundations & Nature of God`, `The Fall, Sin & Human Misery`, …), or a finer
+topic (`The three offices of Christ`, `4th Commandment - the Sabbath`, …). The
+sets are contiguous id ranges defined in `lib/questionSets.ts`; the choice is
+remembered in `localStorage`.
+
+Starting order is still a simple "first unmastered, then wrap" rule, not real
+spaced repetition - deliberately out of scope for this stage.
+
+## Screen wake lock
+
+Hands-free mode requests a **Screen Wake Lock** (`navigator.wakeLock`) for the
+duration of a session so a slow recitation isn't cut off by the display
+sleeping. It's re-requested on `visibilitychange` (the lock drops when the tab
+is backgrounded) and released when the session ends. If the browser denies it
+(older Safari, battery saver, no HTTPS) the session still runs - the screen may
+just dim as before.
+
+## Settings
+
+Feedback verbosity (what the app says out loud after each attempt) lives on a
+separate **Settings** screen (`components/SettingsScreen.tsx`), reached from the
+⚙ link on the Home screen, rather than cluttering the Home screen itself. Both
+the feedback level and the question set are stored under the same
+`catechism-voice-settings-v1` key.
 
 ## Setup
 
@@ -25,6 +52,29 @@ cp .env.example .env.local
 
 Get a Groq API key at https://console.groq.com/keys (free tier: 2,000
 requests/day, plenty for this test).
+
+### Optional: Azure AI Speech (British TTS voice)
+
+Without this the app speaks with the browser's built-in voice. To use a smooth
+en-GB neural voice instead:
+
+1. In the [Azure portal](https://portal.azure.com), create a **Speech** resource
+   (pick the **F0 / free** pricing tier — 500,000 characters/month, no expiry).
+2. Open the resource → **Keys and Endpoint**, copy **KEY 1** and the **Location**
+   (e.g. `uksouth`).
+3. Add them to `prototype/.env.local`:
+
+   ```
+   AZURE_SPEECH_KEY=<your key>
+   AZURE_SPEECH_REGION=<your location, e.g. uksouth>
+   AZURE_SPEECH_VOICE=          # optional; default en-GB-SoniaNeural, or en-GB-RyanNeural
+   ```
+
+4. Restart `npm run dev`.
+
+`/api/tts` renders the speech server-side and returns MP3; `lib/tts.ts` plays it
+and falls back to `speechSynthesis` on any error, so a wrong key or an exhausted
+quota just reverts to the browser voice — it never breaks a session.
 
 ## Running locally (desktop browser)
 
@@ -75,9 +125,10 @@ circle. Easy/Medium show the verdict large and centred instead of a circle
   mic + Groq + diff on a given device before trusting hands-free. Has an
   Easy / Medium / Hard toggle so you can eyeball all three graders on one
   question without starting a session.
-- **Hands-Free** — reads the question aloud (Web Speech API), listens, and
-  auto-detects when you've stopped talking to submit for scoring. Loops
-  through all five questions automatically.
+- **Hands-Free** — reads the question aloud (Azure `en-GB` neural voice via
+  `/api/tts`, browser `speechSynthesis` fallback), listens, and auto-detects
+  when you've stopped talking to submit for scoring. Loops through the whole
+  chosen question set automatically.
 
 ## Three grading modes
 
@@ -118,8 +169,9 @@ the grade itself never depends on the model.
 ## Feedback level (hands-free)
 
 **Hands-free is built to work with the screen off** — it reads the result
-aloud before moving on. How much it says is a Home-screen setting, remembered
-in `localStorage` (`lib/feedbackLevels.ts`, `progressStore.ts`):
+aloud before moving on. How much it says is set on the **Settings** screen
+(⚙ from Home) and remembered in `localStorage`
+(`lib/feedbackLevels.ts`, `progressStore.ts`):
 
 - **Brief** — one spoken line: where you stand, no word list.
 - **Full** — the comprehensive feedback: what you missed and how to fix it
@@ -227,13 +279,16 @@ npm run test:scoring
 
 ```
 app/
-  page.tsx                     — view switcher (Home / Hands-Free / Manual)
+  page.tsx                     — view switcher (Home / Settings / Picker / Hands-Free / Manual)
   layout.tsx                   — root layout; loads Noto Serif via next/font
   globals.css                  — @keyframes pulse (the one thing inline styles can't do)
   api/transcribe/route.ts      — proxies audio to Groq Whisper large-v3
   api/feedback/route.ts        — phrases the Easy/Medium result via a Groq LLM
+  api/tts/route.ts             — renders speech with Azure AI Speech (optional; en-GB neural voice)
 components/
-  HomeScreen.tsx                — mode + feedback-level selectors, streak, badges, progress
+  HomeScreen.tsx                — mode + question-set choice, streak, badges, progress
+  QuestionSetPicker.tsx         — full-screen menu for choosing the question set
+  SettingsScreen.tsx            — feedback-level selector (reached via ⚙ from Home)
   ManualMode.tsx                 — tap-to-record flow + mode toggle (dev/testing)
   HandsFreeMode.tsx              — speak → listen → silence → score → read result aloud → loop
   DiffResult.tsx                 — mode-aware result display (score+diff, or prose+diff)
@@ -242,12 +297,13 @@ lib/
   scoringConfig.ts              — function-word list, STT equivalence rules, list cap, LLM model
   scoring.selftest.ts           — `npm run test:scoring` checks for the grader
   feedbackLevels.ts             — the four hands-free feedback levels
+  questionSets.ts               — named question collections (number ranges + WSC themes)
   wordDiff.ts                   — word-level diff-match-patch wrapper (Hard mode)
   feedbackClient.ts             — calls /api/feedback, falls back to the template
   skipListener.ts               — "next question" voice-skip during result playback
   audioFormat.ts                — cross-browser MediaRecorder mime-type detection
   transcribeAudio.ts            — client for the /api/transcribe route
-  tts.ts                        — Web Speech API wrapper (speak the question aloud)
+  tts.ts                        — speaks text aloud: Azure /api/tts first, browser speechSynthesis fallback
   voiceActivity.ts              — Web Audio amplitude monitor (silence detection)
   liveCaption.ts                 — on-device live captions (SpeechRecognition), display-only
   handsFreeConfig.ts            — tunable silence-detection thresholds
