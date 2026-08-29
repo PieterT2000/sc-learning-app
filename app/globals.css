@@ -1,23 +1,9 @@
-/* Form controls don't inherit font-family from <body> on their own. */
-button,
-input,
-select,
-textarea {
-  font-family: inherit;
-}
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-/* Keyframes the inline-style components can't express. */
-@keyframes pulse {
-  0% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  50% {
-    transform: scale(1.08);
-    opacity: 0.7;
-  }
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
+/*
+ * Tailwind's preflight sets `font-family: inherit` on form controls and resets
+ * margins, so the old hand-rolled rules for those are gone. The mic pulse ring
+ * animation is `animate-micpulse`, defined in tailwind.config.ts.
+ */

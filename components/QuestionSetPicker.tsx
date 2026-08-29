@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useState } from 'react';
 import { loadSettings, saveSettings } from '@/lib/progressStore';
 import { QUESTION_SETS, questionSetSize } from '@/lib/questionSets';
 
@@ -24,15 +24,18 @@ export function QuestionSetPicker({ onBack }: { onBack: () => void }) {
   };
 
   return (
-    <div style={styles.wrap}>
-      <div style={styles.statusBar}>
-        <button onClick={onBack} style={styles.back}>
+    <div className="flex flex-col">
+      <div className="flex items-center justify-between pb-4 pt-3 text-xs text-muted">
+        <button
+          onClick={onBack}
+          className="cursor-pointer border-0 bg-transparent p-0 text-[13px] text-accent"
+        >
           &larr; Home
         </button>
         <span>Choose questions</span>
       </div>
 
-      <p style={styles.intro}>
+      <p className="mb-5 text-[13px] leading-normal text-muted">
         Pick what a session draws from &mdash; the whole catechism, a block of ten, or
         one of the standard themes and topics. The session runs the whole set.
       </p>
@@ -42,18 +45,24 @@ export function QuestionSetPicker({ onBack }: { onBack: () => void }) {
         if (sets.length === 0) return null;
 
         return (
-          <div key={key} style={styles.group}>
-            <div style={styles.groupLabel}>{key.toUpperCase()}</div>
+          <div key={key} className="mb-6">
+            <div className="mb-2 text-xs font-semibold tracking-[1px] text-muted">
+              {key.toUpperCase()}
+            </div>
 
             {layout === 'chips' ? (
-              <div style={styles.chipWrap}>
+              <div className="flex flex-wrap gap-2">
                 {sets.map((s) => {
                   const active = s.id === selected;
                   return (
                     <button
                       key={s.id}
                       onClick={() => choose(s.id)}
-                      style={{ ...styles.chip, ...(active ? styles.chipActive : {}) }}
+                      className={`cursor-pointer rounded-full border-2 px-3 py-2 text-[13px] font-semibold ${
+                        active
+                          ? 'border-accent bg-accent text-white'
+                          : 'border-line bg-white text-ink'
+                      }`}
                     >
                       {s.label}
                     </button>
@@ -61,28 +70,28 @@ export function QuestionSetPicker({ onBack }: { onBack: () => void }) {
                 })}
               </div>
             ) : (
-              <div style={styles.cardList}>
+              <div className="flex flex-col gap-2">
                 {sets.map((s) => {
                   const active = s.id === selected;
                   return (
                     <button
                       key={s.id}
                       onClick={() => choose(s.id)}
-                      style={{
-                        ...styles.card,
-                        ...(layout === 'compact' ? styles.cardCompact : {}),
-                        ...(active ? styles.cardActive : {}),
-                      }}
+                      className={`flex cursor-pointer flex-col gap-1 rounded-xl border-2 text-left px-3.5 ${
+                        layout === 'compact' ? 'py-2.5' : 'py-3'
+                      } ${active ? 'border-accent bg-accent-soft' : 'border-line bg-white'}`}
                     >
-                      <span style={styles.cardTop}>
-                        <span style={styles.cardLabel}>
+                      <span className="flex items-baseline justify-between gap-2.5">
+                        <span className="text-sm font-semibold leading-[1.35] text-ink">
                           {active ? '✓ ' : ''}
                           {s.label}
                         </span>
-                        <span style={styles.cardCount}>{questionSetSize(s.id)}</span>
+                        <span className="shrink-0 text-xs text-muted">
+                          {questionSetSize(s.id)}
+                        </span>
                       </span>
                       {layout === 'card' && s.blurb && (
-                        <span style={styles.cardBlurb}>{s.blurb}</span>
+                        <span className="text-xs leading-normal text-muted">{s.blurb}</span>
                       )}
                     </button>
                   );
@@ -95,71 +104,3 @@ export function QuestionSetPicker({ onBack }: { onBack: () => void }) {
     </div>
   );
 }
-
-const styles: Record<string, CSSProperties> = {
-  wrap: { display: 'flex', flexDirection: 'column' },
-  statusBar: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    fontSize: 12,
-    color: '#888',
-    padding: '12px 0 16px',
-  },
-  back: {
-    border: 'none',
-    background: 'transparent',
-    color: '#3d5a80',
-    fontSize: 13,
-    cursor: 'pointer',
-    padding: 0,
-  },
-  intro: { fontSize: 13, lineHeight: 1.5, color: '#888', margin: '0 0 20px' },
-  group: { marginBottom: 24 },
-  groupLabel: {
-    fontSize: 12,
-    color: '#888',
-    letterSpacing: 1,
-    fontWeight: 600,
-    marginBottom: 8,
-  },
-  chipWrap: { display: 'flex', flexWrap: 'wrap', gap: 8 },
-  chip: {
-    padding: '8px 12px',
-    fontSize: 13,
-    fontWeight: 600,
-    borderWidth: 2,
-    borderStyle: 'solid',
-    borderColor: '#d0cec8',
-    borderRadius: 999,
-    background: '#fff',
-    color: '#2a2a2a',
-    cursor: 'pointer',
-  },
-  chipActive: { borderColor: '#3d5a80', background: '#3d5a80', color: '#fff' },
-  cardList: { display: 'flex', flexDirection: 'column', gap: 8 },
-  card: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 4,
-    padding: '12px 14px',
-    borderWidth: 2,
-    borderStyle: 'solid',
-    borderColor: '#d0cec8',
-    borderRadius: 12,
-    background: '#fff',
-    cursor: 'pointer',
-    textAlign: 'left',
-  },
-  cardCompact: { padding: '10px 14px' },
-  cardActive: { borderColor: '#3d5a80', background: '#f0f4f8' },
-  cardTop: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-    gap: 10,
-  },
-  cardLabel: { fontWeight: 600, fontSize: 14, color: '#2a2a2a', lineHeight: 1.35 },
-  cardCount: { fontSize: 12, color: '#888', flexShrink: 0 },
-  cardBlurb: { fontSize: 12, color: '#888', lineHeight: 1.5 },
-};

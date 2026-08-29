@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { scoreAnswer, briefVerdict, type ScoreResult } from '@/lib/scoring';
 import { fetchFeedbackText } from '@/lib/feedbackClient';
 import {
@@ -456,11 +456,29 @@ export function HandsFreeMode({
     complete: 'Session complete 🎉',
   };
 
+  const cls = {
+    statusBar: 'flex justify-between pb-4 pt-3 text-xs text-muted',
+    sectionLabel: 'mb-2 text-[13px] tracking-[1px] text-muted',
+    status: 'mb-3 text-[15px] text-[#555]',
+    primaryButton:
+      'mt-4 w-full cursor-pointer rounded-2xl border-0 bg-accent py-4 text-base font-semibold text-white',
+    secondaryButton:
+      'flex-1 cursor-pointer rounded-xl border border-line bg-transparent px-3 py-3.5 text-sm font-semibold text-accent',
+    exitButton:
+      'flex-1 cursor-pointer rounded-xl border border-diff-bad bg-transparent px-3 py-3.5 text-sm font-semibold text-diff-bad',
+    backLink: 'mt-3 w-full cursor-pointer border-0 bg-transparent py-3 text-sm text-muted',
+    overviewKey:
+      'shrink-0 grow-0 basis-[76px] pt-0.5 text-[11px] font-semibold tracking-[1px] text-accent',
+    overviewVal: 'flex-1 text-sm leading-normal text-ink',
+    qItem: 'flex gap-2.5 py-2.5 text-[15px] leading-[1.45] text-ink',
+    qId: 'shrink-0 grow-0 basis-8 pt-[3px] text-xs font-bold tracking-[0.5px] text-accent',
+  };
+
   if (!question && phase === 'off') {
     return (
       <div>
-        <p style={styles.status}>No questions available for this session.</p>
-        <button onClick={() => onExit(false)} style={styles.backLink}>
+        <p className={cls.status}>No questions available for this session.</p>
+        <button onClick={() => onExit(false)} className={cls.backLink}>
           ← Back to Home
         </button>
       </div>
@@ -469,11 +487,11 @@ export function HandsFreeMode({
 
   return (
     <div>
-      {error && <p style={styles.error}>{error}</p>}
+      {error && <p className="mb-4 text-sm text-diff-bad">{error}</p>}
 
       {phase === 'off' && (
         <div>
-          <div style={styles.statusBar}>
+          <div className={cls.statusBar}>
             <span>This session</span>
             <span>
               {questions.length} question{questions.length === 1 ? '' : 's'} · ~
@@ -481,56 +499,53 @@ export function HandsFreeMode({
             </span>
           </div>
 
-          <div style={styles.overviewCard}>
-            <div style={styles.overviewRow}>
-              <span style={styles.overviewKey}>DIFFICULTY</span>
-              <span style={styles.overviewVal}>
+          <div className="mb-5 mt-1 rounded-xl bg-card p-4">
+            <div className="mb-2.5 flex gap-3">
+              <span className={cls.overviewKey}>DIFFICULTY</span>
+              <span className={cls.overviewVal}>
                 {MODE_META[mode].icon} {MODE_LABELS[mode]} — {MODE_META[mode].blurb}
               </span>
             </div>
-            <div style={{ ...styles.overviewRow, marginBottom: 0 }}>
-              <span style={styles.overviewKey}>FEEDBACK</span>
-              <span style={styles.overviewVal}>
+            <div className="flex gap-3">
+              <span className={cls.overviewKey}>FEEDBACK</span>
+              <span className={cls.overviewVal}>
                 {selectedFeedback.label} — {selectedFeedback.blurb.toLowerCase()}
                 {'. Say "next question" to skip it.'}
               </span>
             </div>
           </div>
 
-          <div style={styles.questionNum}>QUESTIONS</div>
-          <ol style={styles.qList}>
-            {questions.slice(0, OVERVIEW_PREVIEW).map((q, i, shown) => (
-              <li
-                key={q.id}
-                style={{
-                  ...styles.qItem,
-                  borderBottom:
-                    i === shown.length - 1 && questions.length <= OVERVIEW_PREVIEW
-                      ? 'none'
-                      : '1px solid #ececec',
-                }}
-              >
-                <span style={styles.qId}>Q{q.id}</span>
-                <span>{q.question}</span>
-              </li>
-            ))}
+          <div className={cls.sectionLabel}>QUESTIONS</div>
+          <ol className="mt-1 list-none p-0">
+            {questions.slice(0, OVERVIEW_PREVIEW).map((q, i, shown) => {
+              const noBorder = i === shown.length - 1 && questions.length <= OVERVIEW_PREVIEW;
+              return (
+                <li
+                  key={q.id}
+                  className={`${cls.qItem} ${noBorder ? 'border-b-0' : 'border-b border-b-[#ececec]'}`}
+                >
+                  <span className={cls.qId}>Q{q.id}</span>
+                  <span>{q.question}</span>
+                </li>
+              );
+            })}
             {questions.length > OVERVIEW_PREVIEW && (
-              <li style={{ ...styles.qItem, borderBottom: 'none', color: '#888' }}>
-                <span style={styles.qId} />
+              <li className={`${cls.qItem} border-b-0 !text-muted`}>
+                <span className={cls.qId} />
                 <span>+ {questions.length - OVERVIEW_PREVIEW} more</span>
               </li>
             )}
           </ol>
 
-          <p style={styles.overviewHint}>
+          <p className="mb-5 mt-[18px] text-xs leading-normal text-muted">
             Hands-free from here: each question is read aloud, you answer, and it moves on by
             itself once you stop talking.
           </p>
 
-          <button onClick={startSession} style={styles.primaryButton}>
+          <button onClick={startSession} className={cls.primaryButton}>
             Start Listening
           </button>
-          <button onClick={() => onExit(false)} style={styles.backLink}>
+          <button onClick={() => onExit(false)} className={cls.backLink}>
             ← Back to Home
           </button>
         </div>
@@ -538,37 +553,37 @@ export function HandsFreeMode({
 
       {phase !== 'off' && (
         <div>
-          <div style={styles.statusBar}>
+          <div className={cls.statusBar}>
             <span>
               Question {index + 1} of {questions.length}
             </span>
             <span>{MODE_LABELS[mode]}</span>
           </div>
-          <div style={styles.questionNum}>QUESTION {question.id}</div>
-          <h1 style={styles.question}>{question.question}</h1>
+          <div className={cls.sectionLabel}>QUESTION {question.id}</div>
+          <h1 className="mb-6 text-xl font-semibold leading-normal text-ink">{question.question}</h1>
 
           {isListening && (
-            <div style={styles.listeningIndicator}>
-              <div style={styles.pulseRing}>
+            <div className="my-10 text-center">
+              <div className="mx-auto flex h-[120px] w-[120px] animate-micpulse items-center justify-center rounded-full border-[3px] border-accent">
                 <div
-                  style={{
-                    ...styles.micIcon,
-                    transform: `scale(${1 + Math.min(micLevel * 3, 0.6)})`,
-                  }}
+                  className="text-[40px] transition-transform duration-100 ease-out"
+                  style={{ transform: `scale(${1 + Math.min(micLevel * 3, 0.6)})` }}
                 >
                   🎙️
                 </div>
               </div>
-              <div style={styles.listeningText}>{statusText[phase] || 'Listening…'}</div>
+              <div className="mt-4 text-sm font-medium text-accent">
+                {statusText[phase] || 'Listening…'}
+              </div>
             </div>
           )}
 
           {!isListening && statusText[phase] && (
-            <p style={styles.status}>{statusText[phase]}</p>
+            <p className={cls.status}>{statusText[phase]}</p>
           )}
 
           {isListening && (
-            <div style={styles.liveCaption}>
+            <div className="mt-6 min-h-[60px] rounded-xl bg-card p-4 text-[15px] italic leading-relaxed text-[#555]">
               {captionStatus === 'unsupported'
                 ? 'Live captions aren\u2019t supported in this browser (try Chrome).'
                 : captionStatus === 'error'
@@ -580,8 +595,8 @@ export function HandsFreeMode({
           )}
 
           {isListening && (
-            <div style={styles.hintRow}>
-              <span style={styles.hint}>
+            <div className="mt-6 text-center">
+              <span className="text-xs text-muted">
                 Tap &ldquo;I&rsquo;m done&rdquo; to stop &middot; or just pause a moment
               </span>
             </div>
@@ -590,23 +605,23 @@ export function HandsFreeMode({
           {phase === 'result' && result && <DiffResult transcript={transcript} result={result} />}
 
           {phase === 'result' && (
-            <button onClick={requestSkip} style={styles.primaryButton}>
+            <button onClick={requestSkip} className={cls.primaryButton}>
               Next question &rarr;
             </button>
           )}
 
-          <div style={styles.buttonRow}>
+          <div className="mt-4 flex gap-2.5">
             {isListening && (
-              <button onClick={iAmDone} style={styles.secondaryButton}>
+              <button onClick={iAmDone} className={cls.secondaryButton}>
                 I&rsquo;m done — check it
               </button>
             )}
             {phase !== 'complete' && (
-              <button onClick={repeatQuestion} style={styles.secondaryButton}>
+              <button onClick={repeatQuestion} className={cls.secondaryButton}>
                 Repeat Question
               </button>
             )}
-            <button onClick={() => endSession()} style={styles.exitButton}>
+            <button onClick={() => endSession()} className={cls.exitButton}>
               Exit
             </button>
           </div>
@@ -615,118 +630,3 @@ export function HandsFreeMode({
     </div>
   );
 }
-
-const styles: Record<string, CSSProperties> = {
-  error: { color: '#c0392b', fontSize: 14, marginBottom: 16 },
-  statusBar: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    fontSize: 12,
-    color: '#888',
-    padding: '12px 0 16px',
-  },
-  questionNum: { fontSize: 13, color: '#888', letterSpacing: 1, marginBottom: 8 },
-  overviewCard: { background: '#faf9f6', borderRadius: 12, padding: 16, margin: '4px 0 20px' },
-  overviewRow: { display: 'flex', gap: 12, marginBottom: 10 },
-  overviewKey: {
-    flex: '0 0 76px',
-    fontSize: 11,
-    fontWeight: 600,
-    letterSpacing: 1,
-    color: '#3d5a80',
-    paddingTop: 2,
-  },
-  overviewVal: { flex: 1, fontSize: 14, lineHeight: 1.5, color: '#2a2a2a' },
-  qList: { listStyle: 'none', padding: 0, margin: '4px 0 0' },
-  qItem: {
-    display: 'flex',
-    gap: 10,
-    padding: '10px 0',
-    fontSize: 15,
-    lineHeight: 1.45,
-    color: '#2a2a2a',
-  },
-  qId: {
-    flex: '0 0 32px',
-    fontSize: 12,
-    fontWeight: 700,
-    letterSpacing: 0.5,
-    color: '#3d5a80',
-    paddingTop: 3,
-  },
-  overviewHint: { fontSize: 12, color: '#888', lineHeight: 1.5, margin: '18px 0 20px' },
-  question: { fontSize: 20, fontWeight: 600, lineHeight: 1.5, marginBottom: 24, color: '#2a2a2a' },
-  status: { fontSize: 15, color: '#555', marginBottom: 12 },
-  listeningIndicator: { textAlign: 'center', margin: '40px 0' },
-  pulseRing: {
-    width: 120,
-    height: 120,
-    borderRadius: '50%',
-    border: '3px solid #3d5a80',
-    margin: '0 auto',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    animation: 'pulse 2s infinite',
-  },
-  micIcon: { fontSize: 40, transition: 'transform 100ms ease-out' },
-  listeningText: { marginTop: 16, fontSize: 14, color: '#3d5a80', fontWeight: 500 },
-  liveCaption: {
-    marginTop: 24,
-    padding: 16,
-    background: '#faf9f6',
-    borderRadius: 12,
-    fontSize: 15,
-    lineHeight: 1.6,
-    color: '#555',
-    minHeight: 60,
-    fontStyle: 'italic',
-  },
-  hintRow: { marginTop: 24, textAlign: 'center' },
-  hint: { fontSize: 12, color: '#888' },
-  buttonRow: { display: 'flex', gap: 10, marginTop: 16 },
-  primaryButton: {
-    width: '100%',
-    padding: 16,
-    fontSize: 16,
-    fontWeight: 600,
-    borderRadius: 16,
-    border: 'none',
-    background: '#3d5a80',
-    color: '#fff',
-    cursor: 'pointer',
-    marginTop: 16,
-  },
-  secondaryButton: {
-    flex: 1,
-    padding: '14px 12px',
-    fontSize: 14,
-    fontWeight: 600,
-    borderRadius: 12,
-    border: '1px solid #d0cec8',
-    background: 'transparent',
-    color: '#3d5a80',
-    cursor: 'pointer',
-  },
-  exitButton: {
-    flex: 1,
-    padding: '14px 12px',
-    fontSize: 14,
-    fontWeight: 600,
-    borderRadius: 12,
-    border: '1px solid #c0392b',
-    background: 'transparent',
-    color: '#c0392b',
-    cursor: 'pointer',
-  },
-  backLink: {
-    width: '100%',
-    padding: '12px 0',
-    fontSize: 14,
-    border: 'none',
-    background: 'transparent',
-    color: '#888',
-    cursor: 'pointer',
-    marginTop: 12,
-  },
-};
