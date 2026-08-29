@@ -1,5 +1,7 @@
 # Catechism Voice
 
+**Live:** <https://sc-learning-app.vercel.app/>
+
 A voice-first web app for memorizing the **Westminster Shorter Catechism** (107
 Q&As, public domain, 1647). The app speaks a question aloud, you answer from
 memory, and you get back a **word-by-word colour-coded diff** of exactly what you
@@ -24,10 +26,12 @@ for the plan to take this to production.
 
 ## Status
 
-The core loop — record → transcribe → diff → score — works end-to-end on real
-phones, in three grading modes, with hands-free sessions and question selection.
-Still to do for production: **Supabase persistence + anonymous-first auth**, the
-**PWA shell**, **deployment**, and the **Tailwind migration**. Tracked in
+Deployed to Vercel (link above); auto-deploys on merge to `main`. The core loop —
+record → transcribe → diff → score — works end-to-end on real phones, in three
+grading modes, with hands-free sessions, question selection, and a
+type-the-answer fallback when the mic or Groq is unavailable. Still to do:
+the **PWA shell** (installable / offline), and **Supabase persistence +
+anonymous-first auth** for cross-device sync. Tracked in
 [`docs/production-roadmap.md`](docs/production-roadmap.md).
 
 ## Quickstart
@@ -158,7 +162,8 @@ What the app says out loud after each attempt is set on the **Settings** screen
 app/
   page.tsx                     — view switcher (Home / Settings / Picker / Hands-Free / Manual)
   layout.tsx                   — root layout; loads Noto Serif via next/font
-  globals.css                  — @keyframes pulse (the one thing inline styles can't do)
+  globals.css                  — @tailwind layers
+  icon.png / apple-icon.png    — app icon / favicon (generated; see scripts/gen-icons.mjs)
   api/transcribe/route.ts      — proxies audio to Groq Whisper large-v3
   api/feedback/route.ts        — phrases the Easy/Medium result via a Groq LLM
   api/tts/route.ts             — renders speech with Azure AI Speech (optional; en-GB neural voice)
@@ -187,6 +192,8 @@ lib/
   seed.json                    — all 107 WSC questions (public domain, 1647)
 types/
   speech.d.ts                  — ambient types for the non-standard SpeechRecognition API
+assets/brand/
+  icon-source.jpg              — full-res app icon; `node scripts/gen-icons.mjs` regenerates app/*.png
 docs/
   design.md                    — full design: problem, premises, architecture, data model, modes
   production-roadmap.md         — phased plan from here to a deployed v1
