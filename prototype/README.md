@@ -85,11 +85,21 @@ fully deterministic in every mode.
   punctuation, casing) so they never cost you. You get a percentage plus a
   one-line breakdown of the missing/incorrect words.
 
+All three modes show the green/red word-by-word comparison against the answer.
+Easy/Medium add a written verdict on top: **"Word perfect"** when you recited
+it exactly, or credit for getting every key idea (and, in Easy, for getting
+them in order too) when you didn't.
+
 The Easy/Medium explanation is **hybrid**: the deterministic result is
 handed to a small Groq LLM (`/api/feedback`, model in `lib/scoringConfig.ts`)
 purely to phrase it naturally. If that call fails or `GROQ_API_KEY` is unset,
 it silently falls back to a templated sentence built from the same facts —
 the grade itself never depends on the model.
+
+**Hands-free is built to work with the screen off.** It reads the whole
+result aloud — the generated Easy/Medium feedback verbatim, or the Hard-mode
+score plus its breakdown — before moving to the next question. The question is
+still shown on screen, but you shouldn't need to look at it.
 
 Run the grader's checks with:
 
@@ -137,10 +147,16 @@ npm run test:scoring
    Confirm it does before trusting auto-detection alone.
 8. **Full session loop, hands untouched.** Confirm you can go start-to-finish
    across a 5-question session without touching the phone once it starts.
+9. **Result read aloud, screen ignored.** With the phone face-down, confirm
+   you can still follow along: in Easy/Medium the generated feedback is spoken
+   in full; in Hard the score and the missing/incorrect words are spoken.
+   There's a brief wait before the Easy/Medium audio while the phrasing call
+   runs — it should fall back to the plainer wording if that call is slow or
+   the key is unset, never hang the loop.
 
 ### Live captions
 
-9. **Live caption box is best-effort, not authoritative.** It's powered by
+10. **Live caption box is best-effort, not authoritative.** It's powered by
    the browser's built-in `SpeechRecognition` (`lib/liveCaption.ts`), which
    runs independently of the Groq transcription used for actual scoring.
    Expect it to stumble on archaic vocabulary ("sanctification", "effectual
