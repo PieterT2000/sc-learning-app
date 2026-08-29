@@ -55,13 +55,47 @@ npx ngrok http 3000
 ```
 Use the `https://*.ngrok-free.app` URL it gives you on your phone.
 
-## Two modes
+## Two input modes
 
 - **Manual** — tap to start/stop recording. Use this first to sanity-check
-  mic + Groq + diff on a given device before trusting hands-free.
+  mic + Groq + diff on a given device before trusting hands-free. Has an
+  Easy / Medium / Hard toggle so you can eyeball all three graders on one
+  question without starting a session.
 - **Hands-Free** — reads the question aloud (Web Speech API), listens, and
   auto-detects when you've stopped talking to submit for scoring. Loops
   through all five questions automatically.
+
+## Three grading modes
+
+Picked on the Home screen; the grader lives in `lib/scoring.ts`, with the
+function-word list and Groq-Whisper equivalence rules in `lib/scoringConfig.ts`.
+Judgment (pass/fail, which key ideas are missing / extra / out of order) is
+fully deterministic in every mode.
+
+- **Easy** — every *key* word (anything not a small connecting word) must be
+  present. Order doesn't matter; missing/fumbled small words don't matter.
+  No percentage — you get a sentence or two explaining how your answer
+  differed from the catechism answer.
+- **Medium** — every key word must be present *and in the answer's order*.
+  Small connecting words still don't matter. Also no percentage, same style
+  of written explanation.
+- **Hard** — exact word-for-word, in order, after a light normalisation pass
+  that folds harmless Groq Whisper spelling choices onto the answer key
+  ("for ever" ↔ "forever", "Holy Spirit" ↔ "Holy Ghost", "3" ↔ "three",
+  punctuation, casing) so they never cost you. You get a percentage plus a
+  one-line breakdown of the missing/incorrect words.
+
+The Easy/Medium explanation is **hybrid**: the deterministic result is
+handed to a small Groq LLM (`/api/feedback`, model in `lib/scoringConfig.ts`)
+purely to phrase it naturally. If that call fails or `GROQ_API_KEY` is unset,
+it silently falls back to a templated sentence built from the same facts —
+the grade itself never depends on the model.
+
+Run the grader's checks with:
+
+```bash
+npm run test:scoring
+```
 
 ## What to actually test on the phone
 
@@ -73,9 +107,13 @@ Use the `https://*.ngrok-free.app` URL it gives you on your phone.
    ("Man's chief end is to glorify God, and to enjoy him forever") aloud and
    check the transcript — this validates the design doc's core premise before
    you build anything else on top of it.
-3. **Diff correctness.** Deliberately misspeak a word or drop "and" to confirm
-   the word-level diff (not character-level) is highlighting whole words, not
-   fragments like "glorify" vs "glorif|y".
+3. **Diff / grader correctness.** In Hard mode, deliberately misspeak a word
+   or drop "and" and confirm the word-level diff highlights whole words, not
+   fragments like "glorify" vs "glorif|y" — and that saying "forever" for the
+   answer key's "for ever" still scores 100%. Then switch to Easy/Medium and
+   confirm order (Easy ignores it, Medium doesn't) and small dropped words
+   (both ignore them) behave as described above, with a written explanation
+   instead of a score.
 4. **Round-trip latency.** Design doc target is <500ms for the Groq call
    itself; total perceived latency (stop tap → diff on screen) will be higher
    client-side. Worth timing on real phone hardware, not just localhost.
@@ -115,10 +153,16 @@ Use the `https://*.ngrok-free.app` URL it gives you on your phone.
 ## Known gaps (intentionally out of scope for this prototype)
 
 - No database, auth, or user accounts (per the plan — this only proves the loop)
-- Hard-mode scoring only (exact word match); Easy/Learning-mode scoring
-  (gist matching, prompted hints) is not implemented - the mode selector on
-  the home screen changes the *label* shown during a session but not the
-  actual scoring behavior yet
+- All three grading modes (Easy / Medium / Hard) now behave differently — but
+  progress is still a single 0-100 mastery track, not the per-mode mastery the
+  design doc describes. In Easy/Medium a pass is recorded as 100 and a
+  near-miss is pinned just below the mastery threshold.
+- `FUNCTION_WORDS` and `NORMALISE_RULES` in `lib/scoringConfig.ts` are a
+  hand-picked starting point, not tuned against a corpus of real recitations
+- Easy/Medium feedback wording depends on a Groq LLM call when the key is set;
+  the deterministic template fallback is plainer but always correct
+- The "Learning" mode from the design doc (whispered prompts when you stall)
+  is not built — the third slot is "Medium" instead
 - Session picking is sequential-with-wraparound, not spaced repetition
 - "Why this matters" reflection content (in the wireframe) isn't implemented
 - No offline handling or fallback if Groq is unreachable mid-session
@@ -134,13 +178,18 @@ app/
   page.tsx                     — view switcher (Home / Hands-Free / Manual)
   layout.tsx                   — minimal root layout
   api/transcribe/route.ts      — proxies audio to Groq Whisper large-v3
+  api/feedback/route.ts        — phrases the Easy/Medium result via a Groq LLM
 components/
-  HomeScreen.tsx                — mode selector, streak, badges, progress, Begin Session
-  ManualMode.tsx                 — tap-to-record flow (dev/testing)
+  HomeScreen.tsx                — Easy/Medium/Hard selector, streak, badges, progress
+  ManualMode.tsx                 — tap-to-record flow + mode toggle (dev/testing)
   HandsFreeMode.tsx              — speak → listen → auto-detect silence → score → loop
-  DiffResult.tsx                 — shared score/diff display
+  DiffResult.tsx                 — mode-aware result display (score+diff, or prose)
 lib/
-  wordDiff.ts                   — word-level diff-match-patch wrapper
+  scoring.ts                    — the Easy/Medium/Hard grader (deterministic)
+  scoringConfig.ts              — function-word list, STT equivalence rules, LLM model
+  scoring.selftest.ts           — `npm run test:scoring` checks for the grader
+  wordDiff.ts                   — word-level diff-match-patch wrapper (Hard mode)
+  feedbackClient.ts             — calls /api/feedback, falls back to the template
   audioFormat.ts                — cross-browser MediaRecorder mime-type detection
   transcribeAudio.ts            — client for the /api/transcribe route
   tts.ts                        — Web Speech API wrapper (speak the question aloud)

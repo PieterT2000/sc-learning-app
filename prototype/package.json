@@ -6,7 +6,8 @@
     "dev": "next dev",
     "dev:https": "next dev --experimental-https",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "test:scoring": "ts-node --project lib/tsconfig.selftest.json lib/scoring.selftest.ts"
   },
   "dependencies": {
     "diff-match-patch": "^1.0.5",

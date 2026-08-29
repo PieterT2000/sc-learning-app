@@ -17,6 +17,11 @@
  *   too short cuts people off mid-sentence, too long feels laggy.
  * - maxRecordingMs: hard failsafe regardless of the above, in case VAD
  *   never detects silence (e.g. noisy room, someone rehearsing at length).
+ * - resultPauseMs: how long the Hard-mode score stays on screen before the
+ *   loop moves to the next question.
+ * - proseResultPauseMs: same, for Easy/Medium. Longer, because there's a
+ *   sentence or two of feedback to read rather than a single number, and the
+ *   LLM-phrased version may still be landing.
  * - speechRmsThreshold: the RMS amplitude (0..1) above which we consider
  *   the user to be "speaking" rather than silent/background noise. Ambient
  *   noise floor varies a lot by device and room - this is the first value
@@ -30,4 +35,5 @@ export const HANDS_FREE_CONFIG = {
   trailingSilenceMs: 1500,
   maxRecordingMs: 20000,
   resultPauseMs: 3000,
+  proseResultPauseMs: 7000,
 };

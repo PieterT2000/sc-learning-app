@@ -2,7 +2,8 @@
 
 import { useCallback, useRef, useState, type CSSProperties } from 'react';
 import seedQuestions from '@/lib/seed.json';
-import { wordLevelDiff, type WordDiffResult } from '@/lib/wordDiff';
+import { scoreAnswer, type ScoreResult, type Mode } from '@/lib/scoring';
+import { fetchFeedbackText } from '@/lib/feedbackClient';
 import { getSupportedMimeType, extensionForMimeType } from '@/lib/audioFormat';
 import { transcribeAudio } from '@/lib/transcribeAudio';
 import { startLiveCaption, type LiveCaptionHandle, type LiveCaptionStatus } from '@/lib/liveCaption';
@@ -10,12 +11,19 @@ import { DiffResult } from './DiffResult';
 
 type Phase = 'idle' | 'recording' | 'transcribing' | 'result';
 
+const MODES: Array<{ id: Mode; label: string }> = [
+  { id: 'easy', label: 'Easy' },
+  { id: 'medium', label: 'Medium' },
+  { id: 'hard', label: 'Hard' },
+];
+
 export function ManualMode() {
   const [index, setIndex] = useState(0);
+  const [mode, setMode] = useState<Mode>('hard');
   const [phase, setPhase] = useState<Phase>('idle');
   const [error, setError] = useState<string | null>(null);
   const [transcript, setTranscript] = useState('');
-  const [diffResult, setDiffResult] = useState<WordDiffResult | null>(null);
+  const [result, setResult] = useState<ScoreResult | null>(null);
   const [liveCaption, setLiveCaption] = useState('');
   const [captionStatus, setCaptionStatus] = useState<LiveCaptionStatus | null>(null);
 
@@ -36,19 +44,28 @@ export function ManualMode() {
 
       const text = await transcribeAudio(blob, `answer.${ext}`);
       setTranscript(text);
-      setDiffResult(wordLevelDiff(question.answer, text));
+      const scored = scoreAnswer(mode, question.answer, text);
+      setResult(scored);
       setPhase('result');
+
+      // Hybrid feedback for easy/medium: template shows immediately, the
+      // LLM-phrased version swaps in when it lands.
+      if (scored.mode !== 'hard') {
+        void fetchFeedbackText(scored, question.answer, text).then((fb) => {
+          setResult((cur) => (cur && cur.mode !== 'hard' ? { ...cur, feedback: fb } : cur));
+        });
+      }
     } catch (err) {
       console.error(err);
       setError(err instanceof Error ? err.message : 'Something went wrong.');
       setPhase('idle');
     }
-  }, [question]);
+  }, [question, mode]);
 
   const startRecording = useCallback(async () => {
     setError(null);
     setTranscript('');
-    setDiffResult(null);
+    setResult(null);
     setLiveCaption('');
     setCaptionStatus(null);
     try {
@@ -90,7 +107,7 @@ export function ManualMode() {
   const retry = () => {
     setPhase('idle');
     setTranscript('');
-    setDiffResult(null);
+    setResult(null);
     setError(null);
   };
 
@@ -104,6 +121,20 @@ export function ManualMode() {
       <p style={styles.eyebrow}>
         Question {index + 1} of {seedQuestions.length}
       </p>
+
+      <div style={styles.modeRow}>
+        {MODES.map((m) => (
+          <button
+            key={m.id}
+            onClick={() => setMode(m.id)}
+            disabled={phase === 'recording' || phase === 'transcribing'}
+            style={{ ...styles.modeBtn, ...(m.id === mode ? styles.modeBtnActive : {}) }}
+          >
+            {m.label}
+          </button>
+        ))}
+      </div>
+
       <h1 style={styles.question}>{question.question}</h1>
 
       {error && <p style={styles.error}>{error}</p>}
@@ -133,9 +164,9 @@ export function ManualMode() {
 
       {phase === 'transcribing' && <p style={styles.status}>Transcribing…</p>}
 
-      {phase === 'result' && diffResult && (
+      {phase === 'result' && result && (
         <div>
-          <DiffResult transcript={transcript} diffResult={diffResult} />
+          <DiffResult transcript={transcript} result={result} />
           <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
             <button onClick={retry} style={styles.secondaryButton}>
               Retry
@@ -154,6 +185,19 @@ export function ManualMode() {
 
 const styles: Record<string, CSSProperties> = {
   eyebrow: { fontSize: 13, color: '#888', marginBottom: 6, letterSpacing: 0.4 },
+  modeRow: { display: 'flex', gap: 6, margin: '10px 0 18px' },
+  modeBtn: {
+    flex: 1,
+    padding: '8px 0',
+    fontSize: 13,
+    fontWeight: 600,
+    borderRadius: 8,
+    border: '1px solid #ccc',
+    background: 'transparent',
+    color: '#555',
+    cursor: 'pointer',
+  },
+  modeBtnActive: { borderColor: '#3d5a80', background: '#f0f4f8', color: '#3d5a80' },
   question: { fontSize: 21, lineHeight: 1.4, marginBottom: 28 },
   error: { color: '#c0392b', fontSize: 14, marginBottom: 16 },
   status: { fontSize: 15, color: '#555' },

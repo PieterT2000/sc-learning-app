@@ -1,0 +1,11 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "ts-node": { "transpileOnly": true },
+  "include": ["scoring.selftest.ts", "scoring.ts", "scoringConfig.ts", "wordDiff.ts"]
+}

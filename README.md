@@ -66,15 +66,21 @@ It implements:
 - **Manual mode** — tap to record; for isolating mic/Groq/diff issues per device.
 - **Hands-Free mode** — speaks the question, listens, auto-detects when you stop
   talking, scores, and loops a 5-question session with no taps.
-- **Word-level diff** via `diff-match-patch` and hard-mode exact-match scoring.
+- **Three grading modes** (`lib/scoring.ts`) — Easy (key ideas, any order),
+  Medium (key ideas, in order), Hard (exact words, with an STT-normalisation
+  pass so "for ever" ↔ "forever" isn't penalised). Easy/Medium return a written
+  explanation instead of a percentage, phrased by a Groq LLM (`/api/feedback`)
+  over a deterministic result, with a templated fallback.
+- **Word-level diff** via `diff-match-patch` (Hard mode).
 - **Live captions** (on-device `SpeechRecognition`), display-only, isolated from
   the Groq transcript used for scoring.
 - **localStorage** streak / mastery / badges with sequential-with-wraparound
   session batching.
 
-**Intentionally out of scope** for the prototype: database/auth, Easy and Learning
-mode scoring, spaced repetition, "Why This Matters" content, offline handling, and
-tuned silence/badge thresholds. See
+**Intentionally out of scope** for the prototype: database/auth, per-mode
+mastery tracking, spaced repetition, "Why This Matters" content, the design
+doc's whispered-prompt "Learning" mode, offline handling, and tuned
+silence/badge thresholds. See
 [`prototype/README.md`](prototype/README.md#known-gaps-intentionally-out-of-scope-for-this-prototype)
 for the full list and for phone-testing instructions.
 
