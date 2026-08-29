@@ -50,6 +50,7 @@ type Phase =
   | 'capturing'
   | 'transcribing'
   | 'no-answer'
+  | 'typing' // fallback: no mic, or transcription failed - type the answer instead
   | 'result'
   | 'complete';
 
@@ -72,6 +73,9 @@ export function HandsFreeMode({
   const [micLevel, setMicLevel] = useState(0);
   const [liveCaption, setLiveCaption] = useState('');
   const [captionStatus, setCaptionStatus] = useState<LiveCaptionStatus | null>(null);
+  const [typedAnswer, setTypedAnswer] = useState('');
+  // Persistent (session-long) fallback notice, separate from the transient `error`.
+  const [degraded, setDegraded] = useState<'' | 'no-mic' | 'stt-down'>('');
 
   // Refs, not state, drive the control flow below. This whole loop runs
   // across several `await`s (speak -> listen -> transcribe -> speak again),
@@ -88,6 +92,9 @@ export function HandsFreeMode({
   const wakeLockRef = useRef<WakeLockSentinelLike | null>(null);
 
   const activeRef = useRef(false); // false once the session has been torn down
+  const micAvailableRef = useRef(true); // false when getUserMedia was denied - session runs in type mode
+  const sttDownRef = useRef(false); // true once /api/transcribe has failed - skip recording, go straight to typing
+  const noAnswerCountRef = useRef(0); // consecutive misses on the current question
   const currentIndexRef = useRef(0);
   const hasSpokenRef = useRef(false);
   const listenStartRef = useRef(0);
@@ -298,17 +305,30 @@ export function HandsFreeMode({
       setError(null);
       setTranscript('');
       setResult(null);
+      setTypedAnswer('');
       skipRequestedRef.current = false;
+      noAnswerCountRef.current = 0;
       setPhase('asking');
 
       await speak(questions[qIndex].question);
       if (!activeRef.current) return;
-      startCapture();
+      if (micAvailableRef.current && streamRef.current && !sttDownRef.current) startCapture();
+      else setPhase('typing'); // no mic (or STT is down) - type the answer
     },
     [startCapture, questions]
   );
 
   const handleNoAnswer = useCallback(async () => {
+    noAnswerCountRef.current += 1;
+    // After a second miss on the same question, stop re-asking into the void -
+    // offer to type it instead.
+    if (noAnswerCountRef.current >= 2) {
+      setError(null);
+      setTypedAnswer('');
+      setPhase('typing');
+      await speak('Still not catching that. You can type the answer instead.');
+      return;
+    }
     setPhase('no-answer');
     await speak("I didn't catch that. Let's try again.");
     if (!activeRef.current) return;
@@ -316,19 +336,12 @@ export function HandsFreeMode({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [goToQuestion]);
 
-  const handleAnswer = useCallback(async () => {
-    const q = questions[currentIndexRef.current];
-    setPhase('transcribing');
-    try {
-      const mimeType = mimeTypeRef.current || 'audio/webm';
-      const blob = new Blob(chunksRef.current, { type: mimeType });
-      const ext = extensionForMimeType(mimeType);
-
-      const text = await transcribeAudio(blob, `answer.${ext}`);
-      if (!activeRef.current) return;
-
-      setTranscript(text);
-      const scored = scoreAnswer(mode, q.answer, text);
+  // Everything downstream of "we have a scored answer" - shared by the spoken
+  // path (handleAnswer) and the typed fallback (submitTypedAnswer).
+  const presentResult = useCallback(
+    async (scored: ScoreResult, answerText: string) => {
+      const q = questions[currentIndexRef.current];
+      setTranscript(answerText);
       setResult(scored);
       setPhase('result');
 
@@ -365,7 +378,7 @@ export function HandsFreeMode({
       } else if (full) {
         // Comprehensive: wait for the LLM-phrased feedback (falls back to the
         // deterministic template on failure or timeout), show it, then speak it.
-        const feedback = await fetchFeedbackText(scored, q.answer, text);
+        const feedback = await fetchFeedbackText(scored, q.answer, answerText);
         if (!activeRef.current) return;
         setResult((cur) => (cur && cur.mode !== 'hard' ? { ...cur, feedback } : cur));
         utterances.push({ text: feedback });
@@ -397,31 +410,63 @@ export function HandsFreeMode({
         if (!wasSkipped) await speak("That's this session's questions done. Nicely done.");
         endSession(undefined, true);
       }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    },
+    [goToQuestion, endSession, questions, feedbackLevel, sleepUnlessSkipped]
+  );
+
+  const handleAnswer = useCallback(async () => {
+    const q = questions[currentIndexRef.current];
+    setPhase('transcribing');
+    try {
+      const mimeType = mimeTypeRef.current || 'audio/webm';
+      const blob = new Blob(chunksRef.current, { type: mimeType });
+      const ext = extensionForMimeType(mimeType);
+
+      const text = await transcribeAudio(blob, `answer.${ext}`);
+      if (!activeRef.current) return;
+
+      // Groq reached but returned nothing usable - treat as a miss.
+      if (!text.trim()) {
+        await handleNoAnswer();
+        return;
+      }
+
+      noAnswerCountRef.current = 0;
+      await presentResult(scoreAnswer(mode, q.answer, text), text);
     } catch (err) {
       console.error(err);
       if (!activeRef.current) return;
-      setError(err instanceof Error ? err.message : 'Transcription failed.');
-      // Drop back into listening on the same question rather than killing the session.
-      startCapture();
+      // Transcription service unreachable (rate limit / outage). Stop recording
+      // for the rest of the session and let them type - the diff and scoring
+      // are identical either way.
+      sttDownRef.current = true;
+      setDegraded((d) => d || 'stt-down');
+      setTypedAnswer('');
+      setPhase('typing');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [goToQuestion, endSession, startCapture, questions, mode, feedbackLevel, sleepUnlessSkipped]);
+  }, [presentResult, handleNoAnswer, questions, mode]);
 
   const startSession = useCallback(async () => {
     setError(null);
+    activeRef.current = true;
+    primeVoices(); // must run in this user-gesture handler for iOS audio unlock
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
-      activeRef.current = true;
+      micAvailableRef.current = true;
       void acquireWakeLock(); // keep the screen on for the whole session
-      primeVoices(); // must be called from this user-gesture handler for iOS
-      await goToQuestion(0);
     } catch (err) {
       console.error(err);
-      setError(
-        'Could not access the microphone. Hands-free mode needs mic access - on phones this also requires HTTPS, see README.'
-      );
+      // No mic (denied, or an insecure context on a phone). The session still
+      // runs - questions are read aloud and answers are typed.
+      micAvailableRef.current = false;
+      setDegraded('no-mic');
     }
+
+    await goToQuestion(0);
   }, [goToQuestion, acquireWakeLock]);
 
   const iAmDone = useCallback(() => {
@@ -436,6 +481,21 @@ export function HandsFreeMode({
     void goToQuestion(currentIndexRef.current);
   }, [goToQuestion, teardownAudio]);
 
+  const submitTypedAnswer = useCallback(async () => {
+    const typed = typedAnswer.trim();
+    if (!typed) return;
+    const q = questions[currentIndexRef.current];
+    setError(null);
+    noAnswerCountRef.current = 0;
+    await presentResult(scoreAnswer(mode, q.answer, typed), typed);
+  }, [typedAnswer, questions, mode, presentResult]);
+
+  const retryRecording = useCallback(() => {
+    if (!streamRef.current) return;
+    setError(null);
+    startCapture();
+  }, [startCapture]);
+
   const statusText: Record<Phase, string> = {
     off: '',
     asking: 'Reading the question…',
@@ -444,6 +504,7 @@ export function HandsFreeMode({
     capturing: 'Listening — go ahead…',
     transcribing: 'Checking your answer…',
     'no-answer': "Didn't catch that…",
+    typing: '',
     result: '',
     complete: 'Session complete 🎉',
   };
@@ -479,7 +540,21 @@ export function HandsFreeMode({
 
   return (
     <div>
-      {error && <p className="mb-4 text-sm text-diff-bad">{error}</p>}
+      {degraded === 'no-mic' && (
+        <div className="mb-4 rounded-xl border border-line bg-card px-4 py-3 text-sm leading-relaxed text-muted">
+          No microphone access — type each answer instead. Questions are still read aloud.
+        </div>
+      )}
+      {degraded === 'stt-down' && (
+        <div className="mb-4 rounded-xl border border-line bg-card px-4 py-3 text-sm leading-relaxed text-muted">
+          Can’t reach the transcription service — type your answers for now.
+        </div>
+      )}
+      {error && (
+        <div className="mb-4 rounded-xl border border-diff-bad bg-diff-bad-bg px-4 py-3 text-sm leading-relaxed text-diff-bad">
+          {error}
+        </div>
+      )}
 
       {phase === 'off' && (
         <div>
@@ -502,7 +577,7 @@ export function HandsFreeMode({
               <span className={cls.overviewKey}>FEEDBACK</span>
               <span className={cls.overviewVal}>
                 {selectedFeedback.label} — {selectedFeedback.blurb.toLowerCase()}
-                {'. Say "next question" to skip it.'}
+                {'. Tap "Next question" to skip it.'}
               </span>
             </div>
           </div>
@@ -591,6 +666,34 @@ export function HandsFreeMode({
               <span className="text-xs text-muted">
                 Tap &ldquo;I&rsquo;m done&rdquo; to stop &middot; or just pause a moment
               </span>
+            </div>
+          )}
+
+          {phase === 'typing' && (
+            <div className="mt-2">
+              <textarea
+                value={typedAnswer}
+                onChange={(e) => setTypedAnswer(e.target.value)}
+                rows={4}
+                autoFocus
+                placeholder="Type your answer…"
+                className="w-full resize-y rounded-xl border border-line bg-white p-3 text-[15px] leading-relaxed text-ink outline-none focus:border-accent"
+              />
+              <button
+                onClick={submitTypedAnswer}
+                disabled={!typedAnswer.trim()}
+                className={`${cls.primaryButton} disabled:cursor-default disabled:opacity-40`}
+              >
+                Check answer
+              </button>
+              {micAvailableRef.current && streamRef.current && degraded === '' && (
+                <button
+                  onClick={retryRecording}
+                  className="mt-2 w-full cursor-pointer rounded-xl border border-line bg-transparent py-3.5 text-sm font-semibold text-accent"
+                >
+                  Try recording again
+                </button>
+              )}
             </div>
           )}
 

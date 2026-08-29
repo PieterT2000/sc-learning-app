@@ -31,7 +31,7 @@ What the design doc calls for that **does not exist yet**:
 - **Learning mode** — whispered prompts on a stall (design §"Whispered Prompt Architecture")
 - **Per-mode mastery** — Easy vs Hard tracked independently, "90%+ in 3 sessions"
 - **Groups + leaderboards** — the social layer
-- **Fallback chain** — Groq-down banner, Web Speech fallback, text-input fallback
+- **Fallback chain** — Groq-down / no-mic → type-the-answer, TTS watchdog
 - **Ops** — Groq/Azure quota monitoring, error tracking
 - **Launch hygiene** — privacy policy (mic audio leaves the device), a11y pass, onboarding
 
@@ -90,10 +90,13 @@ live on a URL, installable, honest about failure.
 **1c — Deployability**
 - [ ] PWA: `manifest.webmanifest`, icon set, `next-pwa` (or a hand-rolled service worker) caching the app shell + `seed.json`; verify "Add to Home Screen" on iOS + Android
 - [ ] `next.config.js`: security headers, `poweredByHeader: false`
-- [ ] Fallback chain (design §"Fallback & Error Handling"):
-  - [ ] Groq error / rate-limit → visible banner + fall back to Web Speech STT
-  - [ ] No mic / STT unavailable → text-input path (diff still works)
-  - [ ] Empty/garbage transcript → "Didn't catch that — try again?" with retry
+- [x] Fallback chain (design §"Fallback & Error Handling"):
+  - [x] Groq error / rate-limit → persistent notice + type-the-answer for the rest of the session
+  - [x] No mic → type-the-answer mode (questions still read aloud); diff identical
+  - [x] Two misses in a row → offer the type box instead of re-asking forever
+  - [x] `speechSynthesis` watchdog so a hung TTS engine can't stall the loop
+  - Deviation: **no** auto-fallback to browser `SpeechRecognition` for scoring
+    (poor on archaic vocab — the reason Groq was chosen). Type instead.
 - [ ] `.env.example` complete and documented (`GROQ_API_KEY`, `AZURE_SPEECH_*`)
 - [ ] Deploy to Vercel (maintainer's account); set env vars; **smoke-test on a physical phone over real HTTPS**
 - [ ] GitHub Actions on PR: `tsc --noEmit`, `npm run test:scoring`, `next build`

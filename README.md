@@ -110,6 +110,14 @@ Use the `https://*.ngrok-free.app` URL on the phone.
   wake lock** so a slow recitation isn't cut off by the display sleeping; a
   **Next question →** button skips the spoken feedback.
 
+  **Fallbacks.** If the mic is denied, or `/api/transcribe` (Groq) is
+  unreachable, or two attempts in a row catch nothing, the session drops to a
+  **type-the-answer** box for that question (or the rest of the session) — the
+  question is still read aloud and the diff/scoring are identical. A hung
+  `speechSynthesis` can't stall the loop (there's a watchdog). We deliberately
+  do *not* auto-switch to the browser's `SpeechRecognition` for scoring — it's
+  poor on archaic vocabulary, which is the whole reason Groq was chosen.
+
 ### Three grading modes
 
 Picked on the Home screen; the grader (`lib/scoring.ts`) is fully deterministic
@@ -192,7 +200,7 @@ tools/
 - Progress is a single 0–100 mastery track, not the per-mode mastery the design
   doc describes (Phase 2).
 - No persistence beyond `localStorage`; no accounts or cross-device sync (Phase 2).
-- No PWA / offline handling; no fallback if Groq is unreachable mid-session (Phase 1).
+- No PWA / offline handling yet (Phase 1). Groq/mic failures fall back to typing.
 - `FUNCTION_WORDS` / `NORMALISE_RULES` in `lib/scoringConfig.ts` and the silence
   thresholds in `lib/handsFreeConfig.ts` are hand-picked starting points, not
   tuned against real recitations.

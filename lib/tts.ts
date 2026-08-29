@@ -43,8 +43,20 @@ function speakWithWebSpeech(text: string, rate: number): Promise<void> {
     const voice = cachedVoice ?? pickVoice();
     if (voice) utterance.voice = voice;
 
-    utterance.onend = () => resolve();
-    utterance.onerror = () => resolve(); // never let a TTS glitch hang the loop
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(watchdog);
+      resolve();
+    };
+    utterance.onend = finish;
+    utterance.onerror = finish; // never let a TTS glitch hang the loop
+
+    // Some engines (backgrounded tab, no audio device, a hung queue on Android/
+    // iOS) accept the utterance but never fire onend/onerror. Estimate a
+    // generous max duration and resolve anyway so the session keeps moving.
+    const watchdog = setTimeout(finish, Math.min(20000, 1800 + text.length * 90));
 
     window.speechSynthesis.speak(utterance);
   });
