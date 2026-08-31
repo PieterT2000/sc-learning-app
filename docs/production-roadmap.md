@@ -1,39 +1,43 @@
 # Production Roadmap: Catechism Voice
 
-Status: DRAFT — 2026-08-29
+Status: IN PROGRESS — updated 2026-08-31
 Companion to [`design.md`](design.md). Where the design doc describes the target,
-this describes how to get there from what exists in the repo today (the former
-`prototype/`, promoted to the repo root in Phase 1a).
+this describes how to get there from what exists in the repo today.
+
+**Live:** <https://sc-learning-app.vercel.app/> — see [Deployment](#deployment) for
+how it's wired (and the follow-up to hand off to `PieterT2000`).
 
 ## Where we actually are
 
-The "throwaway prototype" has quietly grown into roughly **70% of the design
-doc's client experience** (Approach B). What already works end-to-end:
+The former `prototype/` is now the product at the repo root, on Tailwind,
+deployed, with a real fallback chain. What works end-to-end:
 
-| Design-doc piece | Prototype state |
+| Design-doc piece | State |
 | --- | --- |
-| Core loop: record → transcribe → diff → score | ✅ Done, all three modes |
+| Core loop: record → transcribe → diff → score | ✅ all three modes |
 | Groq Whisper STT proxy with archaic prompt hint | ✅ `app/api/transcribe` |
-| TTS reads the question aloud | ✅ **Better than planned** — Azure `en-GB` neural voice (`app/api/tts`) with browser `speechSynthesis` fallback, not just SpeechSynthesis |
-| Hands-free full session loop, screen untouched | ✅ Incl. screen wake lock, spoken feedback, a Next-question button to skip it |
+| TTS reads the question aloud | ✅ **better than planned** — Azure `en-GB` neural voice (`app/api/tts`), browser `speechSynthesis` fallback + watchdog |
+| Hands-free full session loop, screen untouched | ✅ screen wake lock, spoken feedback, Next-question button to skip it |
+| **Failure handling** | ✅ no-mic / Groq-down / repeated misses all fall back to type-the-answer (PR #8) |
 | Three grading modes | ⚠️ Easy / **Medium** / Hard — design wants Easy / **Learning** / Hard |
 | Word-level visual diff | ✅ `lib/wordDiff.ts` + chip UI matching the wireframe |
-| Streaks / mastery / badges | ⚠️ Works, but `localStorage` only and a single 0–100 track, not per-mode |
-| Question selection | ✅ **Bonus** — 46 named sets (number blocks + WSC themes/topics), not in the design |
-| Wireframe-aligned UI, Noto Serif | ✅ |
+| Streaks / mastery / badges | ⚠️ works, but `localStorage` only and a single 0–100 track, not per-mode |
+| Question selection | ✅ **bonus** — 46 named sets (number blocks + WSC themes/topics), not in the design |
+| Wireframe-aligned UI, Noto Serif, Tailwind | ✅ (PR #5) |
+| App icon / favicon | ✅ (PR #9) |
+| Deployed to Vercel + CI | ✅ CI on every PR (PR #7); auto-deploys — via a sync step, see below |
 
 What the design doc calls for that **does not exist yet**:
 
-- **Persistence, auth, cross-device sync** — no Supabase, no accounts
-- **PWA** — not installable, no manifest, no service worker, no offline shell
-- **Deployment** — never deployed; no Vercel project, no CI
-- **"Why This Matters" reflections** — the formation payload; wireframe has the slot, content and wiring are absent
-- **Learning mode** — whispered prompts on a stall (design §"Whispered Prompt Architecture")
+- **PWA** — not installable; no manifest, service worker, or offline shell (next up)
+- **Persistence, auth, cross-device sync** — no Supabase, no accounts (Phase 2)
 - **Per-mode mastery** — Easy vs Hard tracked independently, "90%+ in 3 sessions"
-- **Groups + leaderboards** — the social layer
-- **Fallback chain** — Groq-down / no-mic → type-the-answer, TTS watchdog
+- **"Why This Matters" reflections** — parked (decision 6)
+- **Learning mode** — whispered prompts on a stall (Phase 5)
+- **Groups + leaderboards** — the social layer (Phase 5)
 - **Ops** — Groq/Azure quota monitoring, error tracking
 - **Launch hygiene** — privacy policy (mic audio leaves the device), a11y pass, onboarding
+- **Direct autodeploy from `PieterT2000/sc-learning-app`** — see [Deployment](#deployment)
 
 ## Decisions (locked 2026-08-29)
 
@@ -60,46 +64,72 @@ What the design doc calls for that **does not exist yet**:
 6. **"Why This Matters" reflections: parked.** Revisit after the persistence
    structure lands (end of Phase 2). Phase 3 as written below is on hold.
 
+## Deployment
+
+The live site is served by a Vercel project connected to a **private copy Vercel
+made when the project was created**, `Damunns/sc-learning-app` — not the source
+of record, `PieterT2000/sc-learning-app`. So a merge to the real `main` does not
+auto-deploy on its own; the copy has to be pushed first.
+
+**Sync step (run after every merge into `PieterT2000/main`):**
+
+```bash
+git remote add deploy https://github.com/Damunns/sc-learning-app.git   # one-time
+git fetch origin && git push deploy origin/main:main                   # (--force the first time)
+# alias:  git config alias.syncdeploy '!git fetch origin && git push deploy origin/main:main'
+```
+
+**Follow-up (needs `PieterT2000`, who has repo admin):** repoint the Vercel
+project's Git connection to `PieterT2000/sc-learning-app` (Vercel → Project →
+Settings → Git). Then delete `Damunns/sc-learning-app` and drop the sync step.
+
 ## Phased plan
 
-### Phase 0 — Housekeeping (½ day)
+### Phase 0 — Housekeeping — DONE
 
 - [x] Resolve the decisions above (locked 2026-08-29)
-- [x] Update the root [`README.md`](../README.md) status table + roadmap to match reality
-- [ ] Get the current prototype branch merged to `main` (PR #2)
+- [x] Update the root [`README.md`](../README.md) to match reality
+- [x] Get the prototype work merged to `main` (PR #3, after PR #2 was closed for a
+      conflicting head branch)
 
-### Phase 1 — Promote + make it deployable (5–8 days)
+### Phase 1 — Promote + make it deployable
 
-Goal: the current app, restructured to the repo root and styled with Tailwind,
-live on a URL, installable, honest about failure.
+Goal: the current app, at the repo root, on Tailwind, live on a URL, installable,
+honest about failure.
 
-**1a — Promote (one PR, mechanical) — DONE**
-- [x] `git mv prototype/* .` and the dotfiles
-- [x] `prototype/.gitignore` → root `.gitignore` (+ `.claude/`, `.vercel/`)
-- [x] Rename the package (`catechism-voice-prototype` → `catechism-voice`)
-- [x] Merge `prototype/README.md` into the root `README.md`
-- [x] Verify: `npm run build`, `npm run test:scoring`, `tsc --noEmit` from the new root
+**1a — Promote to the repo root — DONE (PR #4)**
+- [x] `git mv prototype/* .`; `.gitignore` merged (+ `.claude/`, `.vercel/`)
+- [x] Package renamed `catechism-voice-prototype` → `catechism-voice`
+- [x] `prototype/README.md` folded into the root `README.md`
+- [x] `build` / `test:scoring` / `tsc --noEmit` pass from the new root
 
-**1b — Tailwind (one PR, then screen-by-screen)**
-- [ ] Add `tailwindcss`, `postcss`, `autoprefixer`; `tailwind.config.ts`, `postcss.config.js`
-- [ ] `@tailwind base/components/utilities` in `globals.css`; keep `@keyframes pulse`
-- [ ] Port the design tokens (steel-blue `#3d5a80`, warm `#faf9f6`, etc.) into the Tailwind theme
-- [ ] Migrate components one at a time, verifying each in the browser: `SettingsScreen` → `QuestionSetPicker` → `HomeScreen` → `DiffResult` → `ManualMode` → `HandsFreeMode`
-- [ ] Drop the per-file `styles: Record<string, CSSProperties>` objects as each is ported
+**1b — Tailwind — DONE (PR #5)**
+- [x] `tailwindcss` 3.4 + `postcss` + `autoprefixer`; `tailwind.config.ts`, `postcss.config.js`
+- [x] Design tokens in the Tailwind theme; Noto Serif via a CSS variable; `animate-micpulse`
+- [x] All six components migrated; every `styles: Record<string, CSSProperties>` object gone
+- [x] `globals.css` reduced to the `@tailwind` layers
 
 **1c — Deployability**
-- [ ] PWA: `manifest.webmanifest`, icon set, `next-pwa` (or a hand-rolled service worker) caching the app shell + `seed.json`; verify "Add to Home Screen" on iOS + Android
-- [ ] `next.config.js`: security headers, `poweredByHeader: false`
-- [x] Fallback chain (design §"Fallback & Error Handling"):
+- [x] `next.config.js`: `poweredByHeader: false` + baseline security headers (PR #7)
+- [x] GitHub Actions on every PR: `tsc --noEmit` + `test:scoring` + `next build` (PR #7)
+- [x] `.env.example` complete and documented (`GROQ_API_KEY`, `AZURE_SPEECH_*`)
+- [x] Deployed to Vercel with env vars set; smoke-tested on a Pixel over real HTTPS
+- [x] App icon / favicon — `app/icon.png` + `app/apple-icon.png`, `scripts/gen-icons.mjs` (PR #9)
+- [x] Fallback chain (design §"Fallback & Error Handling") — PR #8:
   - [x] Groq error / rate-limit → persistent notice + type-the-answer for the rest of the session
   - [x] No mic → type-the-answer mode (questions still read aloud); diff identical
   - [x] Two misses in a row → offer the type box instead of re-asking forever
   - [x] `speechSynthesis` watchdog so a hung TTS engine can't stall the loop
   - Deviation: **no** auto-fallback to browser `SpeechRecognition` for scoring
     (poor on archaic vocab — the reason Groq was chosen). Type instead.
-- [ ] `.env.example` complete and documented (`GROQ_API_KEY`, `AZURE_SPEECH_*`)
-- [ ] Deploy to Vercel (maintainer's account); set env vars; **smoke-test on a physical phone over real HTTPS**
-- [ ] GitHub Actions on PR: `tsc --noEmit`, `npm run test:scoring`, `next build`
+- [ ] **PWA** — `manifest.webmanifest`, full icon set (192 / 512 / 512-maskable via
+      `scripts/gen-icons.mjs`), a service worker (`@ducanh2912/next-pwa` or
+      hand-rolled) caching the app shell + `seed.json`; verify "Add to Home
+      Screen" on iOS + Android. Will touch `next.config.js`.
+- [ ] CSP header — deferred from PR #7; add and test against the live deploy
+      (`connect-src 'self'`; App Router needs care with inline scripts).
+- [ ] Remove the CI `next build` dependency on network for `next/font` if it ever
+      flakes (Noto Serif is fetched at build) — currently fine.
 
 ### Phase 2 — Persistence & auth (1 week)
 
@@ -148,6 +178,19 @@ Deferred by decision 6 until the persistence structure lands. When resumed:
 
 ## Suggested next action
 
-Phase 1a: get PR #2 merged, then a mechanical "promote to root" PR — `git mv`
-`prototype/` up a level, merge the READMEs and `.gitignore`, prove the build
-still passes. Small, reviewable, unblocks everything after it.
+**PWA** (the last open item in Phase 1c): add `manifest.webmanifest` + a full
+icon set + a service worker so the app installs to a phone home screen and the
+shell works offline. Its own branch/PR — it modifies `next.config.js`. After
+that, Phase 1 is done and Phase 2 (Supabase) begins.
+
+## Merged so far
+
+| PR | What |
+| --- | --- |
+| #3 | Prototype work to `main` — grading modes, question sets, hands-free polish, Azure TTS |
+| #4 | Promote `prototype/` → repo root |
+| #5 | Tailwind migration (all screens) |
+| #6 | Remove voice "next question" skip; fix the feedback-TTS endless loop on mobile Chrome |
+| #7 | CI workflow + baseline security headers |
+| #8 | Type-the-answer fallback for mic / Groq failures + TTS watchdog |
+| #9 | App icon / favicon + live deploy link |
